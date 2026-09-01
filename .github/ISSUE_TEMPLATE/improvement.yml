@@ -1,0 +1,58 @@
+name: Improvement
+description: 리팩토링에 한정하지 않고 구조, 성능, 쿼리, 예외 처리, 유지보수성 등을 개선합니다.
+title: "refactor: "
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: 개선 대상
+      description: 개선하려는 코드, 기능 또는 구조를 작성해주세요.
+      placeholder: 개선 대상을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_problem
+    attributes:
+      label: 현재 문제
+      description: 기존 구조의 문제 또는 개선이 필요한 이유를 작성해주세요.
+      placeholder: 현재 문제와 개선이 필요한 이유를 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: direction
+    attributes:
+      label: 개선 방향
+      description: 어떤 방향으로 개선할 예정인지 작성해주세요.
+      placeholder: 계획한 개선 방향을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: 상세 작업
+      description: 필요한 세부 작업을 체크리스트로 작성해주세요.
+      placeholder: |
+        - [ ] 작업 1
+        - [ ] 작업 2
+        - [ ] 작업 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 완료 조건
+      description: 개선 작업이 완료됐다고 판단할 수 있는 조건을 작성해주세요.
+      placeholder: 완료 조건을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 참고 사항
+      description: 관련 자료나 추가로 공유할 내용이 있다면 작성해주세요.
+      placeholder: 참고할 내용을 작성해주세요.

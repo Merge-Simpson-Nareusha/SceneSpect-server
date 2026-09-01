@@ -1,0 +1,84 @@
+name: Bug
+description: 발생한 문제를 재현하고 수정하기 위한 정보를 작성합니다.
+title: "fix: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제 설명
+      description: 현재 발생하는 문제를 설명해주세요.
+      placeholder: 어떤 문제가 발생했는지 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      description: 문제를 재현할 수 있는 순서를 작성해주세요.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: 예상 동작
+      description: 정상적으로 어떻게 동작해야 하는지 작성해주세요.
+      placeholder: 기대한 동작을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: 실제 동작
+      description: 실제로 어떻게 동작하는지 작성해주세요.
+      placeholder: 실제로 확인한 동작을 작성해주세요.
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: 예) macOS 15, Ubuntu 24.04, Windows 11
+
+  - type: input
+    id: runtime_version
+    attributes:
+      label: Language 또는 Runtime Version
+      description: 문제와 관련된 언어 또는 런타임 버전을 작성해주세요.
+      placeholder: 예) Python 3.13, Node.js 22, Java 21
+
+  - type: input
+    id: framework_version
+    attributes:
+      label: Framework Version
+      description: 문제와 관련된 프레임워크와 버전을 작성해주세요.
+      placeholder: 예) FastAPI 0.115, NestJS 11, Spring Boot 3.5
+
+  - type: input
+    id: database
+    attributes:
+      label: Database
+      description: 문제와 관련된 데이터베이스가 있다면 작성해주세요.
+      placeholder: 예) PostgreSQL 17, MySQL 8, Redis 8
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그
+      description: 에러 로그나 Stack Trace를 입력하면 코드 블록으로 표시됩니다.
+      placeholder: 에러 로그나 Stack Trace를 붙여 넣어주세요.
+      render: text
+
+  - type: textarea
+    id: additional_information
+    attributes:
+      label: 추가 정보
+      description: 스크린샷이나 관련 자료가 있다면 작성해주세요.
+      placeholder: 추가로 참고할 내용을 작성해주세요.

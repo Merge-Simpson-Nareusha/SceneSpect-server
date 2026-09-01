@@ -1,0 +1,52 @@
+name: Feature
+description: 새로운 기능 또는 API 구현을 제안합니다.
+title: "feat: "
+body:
+  - type: textarea
+    id: feature_description
+    attributes:
+      label: 기능 설명
+      description: 구현하려는 기능을 간단하게 설명해주세요.
+      placeholder: 구현하려는 기능을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 배경 및 목적
+      description: 이 기능이 왜 필요한지 설명해주세요.
+      placeholder: 해결하려는 문제와 기능의 목적을 작성해주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: 상세 작업
+      description: 구현해야 하는 세부 작업을 체크리스트로 작성해주세요.
+      placeholder: |
+        - [ ] 작업 1
+        - [ ] 작업 2
+        - [ ] 작업 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 완료 조건
+      description: Issue를 완료했다고 판단할 수 있는 조건을 작성해주세요.
+      placeholder: |
+        - [ ] 정상적인 요청이 성공한다.
+        - [ ] 예외 상황을 처리한다.
+        - [ ] 테스트가 통과한다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 참고 자료
+      description: API 문서, 디자인, 관련 링크 등이 있다면 작성해주세요.
+      placeholder: 관련 자료나 링크를 작성해주세요.
