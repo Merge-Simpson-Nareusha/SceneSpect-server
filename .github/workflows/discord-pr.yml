@@ -1,0 +1,93 @@
+name: Discord PR Notification
+
+on:
+  pull_request_target:
+    types: [opened]
+
+# This workflow only reads PR metadata. It never checks out or runs PR code.
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Send Discord notification
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Send PR notification to Discord
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_ROLE_ID: ${{ vars.DISCORD_ROLE_ID }}
+          DISCORD_MENTION_ENABLED: ${{ vars.DISCORD_MENTION_ENABLED }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_HEAD: ${{ github.event.pull_request.head.label }}
+          PR_BASE: ${{ github.event.pull_request.base.label }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
+            echo "DISCORD_WEBHOOK_URL secret is not configured."
+            exit 1
+          fi
+
+          mention=""
+          allowed_roles='[]'
+
+          if [[ "${DISCORD_MENTION_ENABLED,,}" == "true" ]]; then
+            if [[ ! "${DISCORD_ROLE_ID}" =~ ^[0-9]{17,20}$ ]]; then
+              echo "DISCORD_ROLE_ID must be a 17-20 digit Discord role ID when mentions are enabled."
+              exit 1
+            fi
+
+            mention="<@&${DISCORD_ROLE_ID}>"
+            allowed_roles="$(jq -cn --arg role_id "${DISCORD_ROLE_ID}" '[$role_id]')"
+          fi
+
+          payload="$(
+            jq -cn \
+              --arg content "${mention}" \
+              --arg repository "${REPOSITORY}" \
+              --arg title "${PR_TITLE}" \
+              --arg url "${PR_URL}" \
+              --arg number "${PR_NUMBER}" \
+              --arg author "${PR_AUTHOR}" \
+              --arg head "${PR_HEAD}" \
+              --arg base "${PR_BASE}" \
+              --argjson roles "${allowed_roles}" \
+              '{
+                content: $content,
+                allowed_mentions: {
+                  parse: [],
+                  roles: $roles
+                },
+                embeds: [
+                  {
+                    title: ("🔀 새 Pull Request #" + $number),
+                    url: $url,
+                    description: ("**" + $title + "**"),
+                    color: 5814783,
+                    fields: [
+                      {name: "저장소", value: $repository, inline: false},
+                      {name: "작성자", value: $author, inline: true},
+                      {name: "브랜치", value: ($head + " → " + $base), inline: true}
+                    ],
+                    footer: {text: "GitHub Pull Request"}
+                  }
+                ]
+              }'
+          )"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "${payload}" \
+            "${DISCORD_WEBHOOK_URL}"
