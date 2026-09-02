@@ -18,7 +18,7 @@ jobs:
       - name: Send issue notification to Discord
         shell: bash
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_ISSUE_WEBHOOK }}
           DISCORD_ROLE_ID: ${{ vars.DISCORD_ROLE_ID }}
           DISCORD_MENTION_ENABLED: ${{ vars.DISCORD_MENTION_ENABLED }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
 
           if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
-            echo "DISCORD_WEBHOOK_URL secret is not configured."
+            echo "DISCORD_ISSUE_WEBHOOK secret is not configured."
             exit 1
           fi
 
