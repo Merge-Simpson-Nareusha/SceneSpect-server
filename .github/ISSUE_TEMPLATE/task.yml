@@ -1,6 +1,6 @@
 name: Task
 description: CI/CD, Docker, GitHub Actions, 인프라, 문서, 환경·DB 설정, 배포 등 일반 작업을 관리합니다.
-title: ""
+title: "task: "
 body:
   - type: textarea
     id: task
