@@ -1,0 +1,147 @@
+name: Convention Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  convention-check:
+    name: Convention Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Validate branch, title, and issue link
+        shell: bash
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+
+          branch_pattern='^(feat|fix|docs|refactor|chore)/([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*$'
+          title_pattern='^(feat|fix|docs|refactor|chore):[[:space:]]+[^[:space:]].*$'
+
+          if [[ ! "${HEAD_REF}" =~ ${branch_pattern} ]]; then
+            echo "::error title=Invalid branch name::Expected <type>/<issue-number>-<name>. Allowed types: feat, fix, docs, refactor, chore. Actual: ${HEAD_REF}"
+            cat <<EOF
+          Invalid branch name.
+
+          Expected:
+          <type>/<issue-number>-<name>
+
+          Allowed types:
+          feat, fix, docs, refactor, chore
+
+          Actual:
+          ${HEAD_REF}
+          EOF
+            exit 1
+          fi
+
+          branch_type="${BASH_REMATCH[1]}"
+          branch_issue="${BASH_REMATCH[2]}"
+
+          if [[ ! "${PR_TITLE}" =~ ${title_pattern} ]]; then
+            echo "::error title=Invalid Pull Request title::Expected <type>: <message>. Allowed types: feat, fix, docs, refactor, chore. Actual: ${PR_TITLE}"
+            cat <<EOF
+          Invalid Pull Request title.
+
+          Expected:
+          <type>: <message>
+
+          Allowed types:
+          feat, fix, docs, refactor, chore
+
+          Actual:
+          ${PR_TITLE}
+          EOF
+            exit 1
+          fi
+
+          pr_type="${BASH_REMATCH[1]}"
+
+          issue_links="$(
+            printf '%s\n' "${PR_BODY}" |
+              tr -d '\r' |
+              grep -E '^[[:space:]]*Closes #[0-9]+[[:space:]]*$' || true
+          )"
+
+          if [[ -z "${issue_links}" ]]; then
+            echo "::error title=Missing Issue link::The PR body must contain exactly one line in this format: Closes #${branch_issue}"
+            cat <<EOF
+          Missing Issue link.
+
+          Expected PR body:
+          Closes #${branch_issue}
+          EOF
+            exit 1
+          fi
+
+          issue_count="$(printf '%s\n' "${issue_links}" | grep -c .)"
+
+          if (( issue_count != 1 )); then
+            echo "::error title=Multiple Issue links::Exactly one Issue must be linked. Found: ${issue_count}"
+            cat <<EOF
+          Multiple Issue links found.
+
+          Expected exactly one line:
+          Closes #${branch_issue}
+
+          Found:
+          ${issue_count} Issue links
+          EOF
+            exit 1
+          fi
+
+          pr_issue="$(printf '%s\n' "${issue_links}" | sed -E 's/^[[:space:]]*Closes #([0-9]+)[[:space:]]*$/\1/')"
+
+          if [[ "${branch_issue}" != "${pr_issue}" ]]; then
+            echo "::error title=Issue mismatch::Branch Issue #${branch_issue} does not match PR Issue #${pr_issue}. Expected: Closes #${branch_issue}"
+            cat <<EOF
+          Issue mismatch.
+
+          Branch issue:
+          #${branch_issue}
+
+          PR issue:
+          #${pr_issue}
+
+          Expected PR body:
+          Closes #${branch_issue}
+          EOF
+            exit 1
+          fi
+
+          if [[ "${branch_type}" != "${pr_type}" ]]; then
+            echo "::error title=Type mismatch::Branch type '${branch_type}' does not match PR title type '${pr_type}'."
+            cat <<EOF
+          Type mismatch.
+
+          Branch type:
+          ${branch_type}
+
+          PR title type:
+          ${pr_type}
+
+          Expected PR title:
+          ${branch_type}: <message>
+          EOF
+            exit 1
+          fi
+
+          echo "Convention check passed."
+          echo "Branch: ${HEAD_REF}"
+          echo "PR title: ${PR_TITLE}"
+          echo "Issue: #${pr_issue}"
