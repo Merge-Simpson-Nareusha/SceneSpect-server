@@ -18,7 +18,7 @@ jobs:
       - name: Send PR notification to Discord
         shell: bash
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_PR_WEBHOOK }}
           DISCORD_ROLE_ID: ${{ vars.DISCORD_ROLE_ID }}
           DISCORD_MENTION_ENABLED: ${{ vars.DISCORD_MENTION_ENABLED }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
 
           if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
-            echo "DISCORD_WEBHOOK_URL secret is not configured."
+            echo "DISCORD_PR_WEBHOOK secret is not configured."
             exit 1
           fi
 
