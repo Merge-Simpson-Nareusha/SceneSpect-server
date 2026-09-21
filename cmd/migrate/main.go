@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/config"
+	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/config"
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/migrations"
 )
 
