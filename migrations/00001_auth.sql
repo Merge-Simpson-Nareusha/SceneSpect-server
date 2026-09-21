@@ -49,16 +49,6 @@ CREATE TABLE user_terms (
     PRIMARY KEY (user_id, term_id)
 );
 
-CREATE TABLE oauth_accounts (
-    id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider VARCHAR(20) NOT NULL CHECK (provider IN ('google', 'apple', 'kakao', 'x')),
-    provider_subject TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (provider, provider_subject),
-    UNIQUE (user_id, provider)
-);
-
 INSERT INTO terms (id, code, version, title, content, required, active) VALUES
     ('00000000-0000-0000-0000-000000000001', 'service', '1.0', '서비스 이용약관', 'SceneSpect 서비스 이용약관입니다.', true, true),
     ('00000000-0000-0000-0000-000000000002', 'privacy', '1.0', '개인정보 수집 및 이용', 'SceneSpect 개인정보 처리 안내입니다.', true, true),
@@ -66,7 +56,6 @@ INSERT INTO terms (id, code, version, title, content, required, active) VALUES
 ON CONFLICT (code, version) DO NOTHING;
 
 -- +goose Down
-DROP TABLE oauth_accounts;
 DROP TABLE user_terms;
 DROP TABLE terms;
 DROP TABLE refresh_tokens;

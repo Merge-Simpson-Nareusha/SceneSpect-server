@@ -21,18 +21,17 @@ cmd/
 ├── api/main.go                 # 의존성 주입과 HTTP 서버 실행
 └── migrate/main.go             # Goose migration 실행
 internal/
-├── cache/redis.go              # 가입·인증코드·재설정·rate limit TTL 상태
+├── cache/                      # 가입·인증코드·재설정·rate limit TTL 상태
 ├── config/config.go            # 환경변수 검증
 ├── database/postgres.go        # PostgreSQL pool 연결 확인
-├── domain/auth.go              # 인증 도메인 타입과 오류
+├── domain/                     # 사용자·약관·가입·토큰 타입과 오류
 ├── handler/                    # 요청 DTO와 응답·쿠키 처리
 ├── mailer/mailer.go            # SMTP/콘솔 메일 어댑터
 ├── middleware/auth.go          # Access Token 인증과 RBAC
-├── oauth/provider.go           # 소셜 로그인 확장 인터페이스
-├── repository/auth_repository.go # PostgreSQL 저장소
+├── repository/                 # PostgreSQL 사용자·약관·토큰 저장소
 ├── router/router.go            # 라우트와 미들웨어 조립
-├── security/crypto.go          # JWT, bcrypt, 난수, 입력 검증
-└── service/auth_service.go     # 회원가입·로그인·토큰 유스케이스
+├── security/                   # JWT, bcrypt, 난수, 입력 검증
+└── service/                    # 회원가입·로그인·계정 유스케이스
 ```
 
 가입 중간 상태는 영속 회원이 아니므로 Redis에 TTL로 저장합니다. 이렇게 하면 미완료 가입을 PostgreSQL에서 별도 정리할 배치 없이 자동 만료시킬 수 있고, 인증코드·rate limit·비밀번호 재설정 토큰과 동일한 만료 정책으로 관리할 수 있습니다. 최종 회원·약관 동의·Refresh Token hash는 PostgreSQL에 저장합니다.
@@ -70,7 +69,6 @@ Access Token은 `Authorization: Bearer ...`로 전달하고, Refresh Token은 `H
 
 - 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 가입 시 username은 고정되고 nickname만 변경됩니다.
 - 인증코드는 6자리·5분 TTL이며 HMAC으로 Redis에 저장합니다. 발송 쿨다운, 시간당 발송 제한, 5회 실패 제한을 Redis Lua 스크립트로 원자 처리합니다.
-- OAuth는 `OAuthProvider` 인터페이스와 `oauth_accounts` 테이블만 준비했습니다. 공급자별 state·PKCE·JWKS 검증은 실제 클라이언트 설정을 확정한 뒤 구현해야 합니다.
 
 ## 검증
 
