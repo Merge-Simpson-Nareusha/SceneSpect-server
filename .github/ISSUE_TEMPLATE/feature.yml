@@ -1,6 +1,6 @@
 name: Feature
 description: 새로운 기능 또는 API 구현을 제안합니다.
-title: "feat: "
+title: "feature: "
 body:
   - type: textarea
     id: feature_description
