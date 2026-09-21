@@ -14,24 +14,23 @@ docker compose up --build
 
 ## 패키지 구조
 
-책임별 `cmd` + `internal` 경계를 사용합니다. `cmd/api`는 조립과 서버 생명주기만 담당하고, 실제 유스케이스는 `service`가, HTTP 변환은 `handler`가 담당합니다.
+책임별 `cmd` + `internal` 경계를 사용합니다. `cmd/server`는 의존성 조립과 서버 생명주기만 담당하고, 도메인별 인증·사용자 기능은 `internal/domain` 아래에서 관리합니다.
 
 ```text
 cmd/
-├── api/main.go                 # 의존성 주입과 HTTP 서버 실행
+├── server/main.go              # 의존성 조립과 HTTP 서버 실행
 └── migrate/main.go             # Goose migration 실행
 internal/
-├── cache/                      # 가입·인증코드·재설정·rate limit TTL 상태
-├── config/config.go            # 환경변수 검증
-├── database/postgres.go        # PostgreSQL pool 연결 확인
-├── domain/                     # 사용자·약관·가입·토큰 타입과 오류
-├── handler/                    # 요청 DTO와 응답·쿠키 처리
-├── mailer/mailer.go            # SMTP/콘솔 메일 어댑터
-├── middleware/auth.go          # Access Token 인증과 RBAC
-├── repository/                 # PostgreSQL 사용자·약관·토큰 저장소
-├── router/router.go            # 라우트와 미들웨어 조립
-├── security/                   # JWT, bcrypt, 난수, 입력 검증
-└── service/                    # 회원가입·로그인·계정 유스케이스
+├── global/
+│   ├── config/                 # 환경변수 검증
+│   ├── database/               # PostgreSQL pool와 Redis TTL 상태
+│   ├── mailer/                 # SMTP/콘솔 메일 어댑터
+│   ├── middleware/             # Access Token 인증과 RBAC
+│   ├── response/               # 공통 오류와 JSON 응답
+│   └── security/               # JWT, bcrypt, 난수, 입력 검증
+└── domain/
+    ├── auth/                   # 회원가입·로그인·토큰·약관 도메인
+    ├── user/                   # 내 정보와 닉네임 도메인
 ```
 
 가입 중간 상태는 영속 회원이 아니므로 Redis에 TTL로 저장합니다. 이렇게 하면 미완료 가입을 PostgreSQL에서 별도 정리할 배치 없이 자동 만료시킬 수 있고, 인증코드·rate limit·비밀번호 재설정 토큰과 동일한 만료 정책으로 관리할 수 있습니다. 최종 회원·약관 동의·Refresh Token hash는 PostgreSQL에 저장합니다.
