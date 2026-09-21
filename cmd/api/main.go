@@ -48,7 +48,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// FirstServer식으로 연결 순서와 책임을 한 곳에서 읽을 수 있게 조립합니다.
+	// 연결 순서와 책임을 한 곳에서 읽을 수 있게 조립합니다.
 	// database/cache -> repository -> service -> handler -> router 순서입니다.
 	sender := buildMailSender(cfg)
 	tokenManager := security.TokenManager{Key: cfg.JWTKey, Issuer: cfg.Issuer, Audience: cfg.Audience, TTL: cfg.AccessTTL}
