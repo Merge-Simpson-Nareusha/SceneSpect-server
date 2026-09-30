@@ -15,10 +15,7 @@ import (
 
 var sixDigitCode = regexp.MustCompile(`^[0-9]{6}$`)
 
-// StartSignup은 users를 바로 만들지 않고 Redis에 짧은 가입 세션을 만듭니다.
-// 사용자가 중간에 이탈해도 미완료 계정이 남지 않고, 마지막 단계에서만
-// 약관과 함께 PostgreSQL 회원을 생성할 수 있습니다. 처리 순서는 요청 IP 제한,
-// 이메일 정규화, 기존 계정 확인, 기본 닉네임 검증, Redis 세션 생성입니다.
+// StartSignup은 이메일 중복을 확인하고 기본 닉네임을 정한 뒤 Redis에 임시 가입 세션을 만듭니다.
 func (s *AuthService) StartSignup(ctx context.Context, email, requestIP string) (model.SignupStartResult, error) {
 	if err := s.cache.Limit(ctx, "signup-start", requestIP, 10, time.Hour); err != nil {
 		return model.SignupStartResult{}, err
@@ -46,12 +43,8 @@ func (s *AuthService) StartSignup(ctx context.Context, email, requestIP string) 
 	return model.SignupStartResult{SignupSessionID: sessionID, Email: normalized, Nickname: nickname, ExpiresIn: int64(redisdb.SignupTTL.Seconds())}, nil
 }
 
-// SetSignupPassword는 아직 email 단계인 세션에만 비밀번호를 설정합니다.
-// Redis에는 원문 대신 bcrypt 해시를 넣으며 SetPassword가 stage 변경을 원자적으로
-// 처리하므로 뒤 단계 요청이 비밀번호 설정을 건너뛸 수 없습니다.
+// SetSignupPassword는 email 단계의 세션에 비밀번호 해시를 저장하고 다음 단계로 이동합니다.
 func (s *AuthService) SetSignupPassword(ctx context.Context, sessionID, password, confirmation string) error {
-	// 비밀번호 원문은 Redis에도 저장하지 않습니다. 비교가 끝난 즉시 bcrypt 해시만
-	// 저장해 Redis가 노출되어도 원문을 복구할 수 없게 합니다.
 	if password != confirmation {
 		return model.ErrInvalid
 	}
@@ -65,15 +58,9 @@ func (s *AuthService) SetSignupPassword(ctx context.Context, sessionID, password
 	return s.cache.SetPassword(ctx, sessionID, hash)
 }
 
-// SendSignupCode는 password 단계의 가입 세션에만 인증번호를 보냅니다.
-// 요청 IP와 이메일 단위 횟수 제한에 더해 Redis가 이메일 재전송 대기 시간과
-// 가입 세션별 실패 횟수를 검사합니다. 메일에는 원문 코드를 보내고 저장소에는
-// 가입 세션에 묶은 HMAC 값만 저장합니다. 코드를 저장한 뒤 메일을 보내므로 발송이
-// 실패해도 60초 재전송 대기는 적용됩니다. 발송 서비스 장애 때는 대기가 끝난 뒤
-// 다시 보내야 하며 코드는 정상 발송되지 않았다면 사용자가 인증에 쓸 수 없습니다.
+// SendSignupCode는 password 단계 세션에 6자리 코드를 보내고 Redis에는 HMAC 값으로 저장합니다.
+// 발송 횟수와 재전송 대기 시간은 IP·이메일 기준으로 제한합니다.
 func (s *AuthService) SendSignupCode(ctx context.Context, sessionID, requestIP string) (model.VerificationResult, error) {
-	// 세션 단계가 password인지 먼저 확인한 뒤에만 코드를 보냅니다. 이 순서 검증이
-	// 없으면 인증코드 발송 API를 가입 세션 없이 악용할 수 있습니다.
 	signup, err := s.cache.Signup(ctx, sessionID, "password")
 	if err != nil {
 		return model.VerificationResult{}, err
@@ -101,21 +88,15 @@ func (s *AuthService) SendSignupCode(ctx context.Context, sessionID, requestIP s
 // 맞는 코드는 한 번만 소비되고 세션은 verified 단계로 이동합니다. 틀린 코드는
 // 재전송으로 초기화되지 않는 누적 실패 횟수를 올립니다.
 func (s *AuthService) VerifySignupCode(ctx context.Context, sessionID, code string) error {
-	// 정규식으로 6자리 숫자를 먼저 제한하고, 실제 비교는 Redis Lua 스크립트가
-	// 실패 횟수 증가와 코드 삭제를 한 번에 처리합니다.
 	if !sixDigitCode.MatchString(code) {
 		return model.ErrCode
 	}
 	return s.cache.VerifyCode(ctx, sessionID, security.CodeHash(s.codeKey, sessionID, code))
 }
 
-// CompleteSignup은 인증이 끝난 임시 세션만 영구 계정으로 승격합니다. repository가
-// 현재 필수 약관 동의와 users/user_terms 삽입을 한 DB 트랜잭션에서 처리한 뒤에
-// 가입 상태를 지우고 로그인 토큰을 발급합니다. PostgreSQL 커밋 뒤 토큰 발급이
-// 실패하면 회원은 이미 만들어진 상태이므로 새 가입 대신 일반 로그인으로 이어가야 합니다.
+// CompleteSignup은 이메일 인증과 필수 약관 동의를 확인해 회원을 생성하고 로그인 토큰을 발급합니다.
+// 회원 생성 후 토큰 발급이 실패하면 가입을 반복하지 않고 일반 로그인으로 이어가야 합니다.
 func (s *AuthService) CompleteSignup(ctx context.Context, sessionID string, consents []model.Consent) (model.Tokens, error) {
-	// verified 단계의 Redis 데이터만 영속 회원으로 승격합니다. 이후 약관 검증과
-	// users/user_terms 삽입이 성공하면 자동 로그인 토큰을 발급합니다.
 	signupData, err := s.cache.Signup(ctx, sessionID, "verified")
 	if err != nil {
 		return model.Tokens{}, err

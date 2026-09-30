@@ -72,6 +72,7 @@ func Load() (Config, error) {
 	return c, nil
 }
 
+// secret은 환경 변수에서 Base64 비밀값을 읽고 최소 길이를 확인합니다.
 func secret(name string) ([]byte, error) {
 	b, err := base64.StdEncoding.DecodeString(os.Getenv(name))
 	if err != nil || len(b) < 32 {
@@ -80,6 +81,7 @@ func secret(name string) ([]byte, error) {
 	return b, nil
 }
 
+// env는 비어 있지 않은 환경 변수 값을 사용하고, 없으면 기본값을 반환합니다.
 func env(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v

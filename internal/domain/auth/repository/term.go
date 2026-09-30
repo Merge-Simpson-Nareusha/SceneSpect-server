@@ -6,8 +6,8 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth/model"
 )
 
+// Terms는 가입 화면과 동의 검증에 사용할 현재 활성 약관을 조회합니다.
 func (r *PostgresAuthRepository) Terms(ctx context.Context) ([]model.Term, error) {
-	// active 약관만 읽어 가입 화면과 가입 완료 검증이 같은 버전을 사용하게 합니다.
 	rows, err := r.Pool.Query(ctx, `SELECT id,code,version,title,content,required FROM terms WHERE active ORDER BY code`)
 	if err != nil {
 		return nil, err

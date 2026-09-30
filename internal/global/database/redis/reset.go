@@ -16,9 +16,8 @@ type ResetState struct {
 	PasswordVersion int64  `json:"version"`
 }
 
+// SaveReset은 재설정 토큰의 해시 키에 사용자 ID와 발급 당시 비밀번호 버전을 TTL과 함께 저장합니다.
 func (e Ephemeral) SaveReset(ctx context.Context, raw, userID string, passwordVersion int64) error {
-	// 비밀번호 재설정 토큰은 원문 대신 해시 키로 저장하고, 당시 passwordVersion을
-	// 함께 기록해 이후 비밀번호 변경 여부를 검증할 수 있게 합니다.
 	value, err := json.Marshal(ResetState{userID, passwordVersion})
 	if err != nil {
 		return err
@@ -26,18 +25,15 @@ func (e Ephemeral) SaveReset(ctx context.Context, raw, userID string, passwordVe
 	return e.Client.Set(ctx, "password:reset:"+security.TokenHash(raw), value, ResetTTL).Err()
 }
 
-// GET과 DEL을 한 원자 연산으로 실행해 같은 토큰을 동시에 제출해도 한 요청만 얻습니다.
-// 토큰 원문은 Redis key에 사용하지 않고 security.TokenHash 결과를 key에 붙입니다.
+// consumeReset은 토큰 조회와 삭제를 원자적으로 처리해 한 요청만 토큰을 사용할 수 있게 합니다.
 var consumeReset = goredis.NewScript(`
 local value = redis.call('GET', KEYS[1])
 if not value then return false end
 redis.call('DEL', KEYS[1])
 return value`)
 
-// 토큰 조회와 삭제를 하나의 Redis 명령으로 묶어 비밀번호 재설정 토큰의 재사용을 막습니다.
+// ConsumeReset은 재설정 토큰을 한 번만 소비하고 발급 당시 비밀번호 버전을 반환합니다.
 func (e Ephemeral) ConsumeReset(ctx context.Context, raw string) (ResetState, error) {
-	// GET 후 DEL을 별도 명령으로 실행하면 동시 요청이 같은 토큰을 함께 사용할 수
-	// 있으므로 Lua 스크립트에서 조회와 삭제를 원자적으로 처리합니다.
 	var state ResetState
 	value, err := consumeReset.Run(ctx, e.Client, []string{"password:reset:" + security.TokenHash(raw)}).Result()
 	if err == goredis.Nil {
@@ -56,6 +52,7 @@ func (e Ephemeral) ConsumeReset(ctx context.Context, raw string) (ResetState, er
 	return state, nil
 }
 
+// DeleteReset은 재설정 토큰의 해시 키를 Redis에서 삭제합니다.
 func (e Ephemeral) DeleteReset(ctx context.Context, raw string) error {
 	return e.Client.Del(ctx, "password:reset:"+security.TokenHash(raw)).Err()
 }

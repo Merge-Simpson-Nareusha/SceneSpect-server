@@ -13,6 +13,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
+// InsertRefresh는 원문 대신 해시한 Refresh Token과 만료 정보를 저장합니다.
 func (r *PostgresAuthRepository) InsertRefresh(ctx context.Context, userID, familyID, raw string, expires time.Time) error {
 	// raw는 절대 저장하지 않고 SHA-256 해시만 저장합니다. DB가 읽혀도 쿠키 원문을
 	// 바로 사용할 수 없도록 하는 핵심 경계입니다.
@@ -20,24 +21,21 @@ func (r *PostgresAuthRepository) InsertRefresh(ctx context.Context, userID, fami
 	return err
 }
 
-// RevokeToken은 원문이 아니라 전달받은 토큰의 해시로 DB 행을 찾습니다.
-// COALESCE는 이미 폐기된 토큰의 최초 시각을 덮어쓰지 않아 반복 요청에도 결과가 안정적입니다.
+// RevokeToken은 해시로 Refresh Token을 찾아 최초 폐기 시각을 기록합니다.
 func (r *PostgresAuthRepository) RevokeToken(ctx context.Context, raw string) error {
 	_, err := r.Pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE token_hash=$1`, security.TokenHash(raw))
 	return err
 }
 
-// RevokeAllTokens는 비밀번호 변경과 같은 계정 단위 보안 사건에서 사용합니다.
-// 이미 폐기된 행은 다시 갱신하지 않습니다.
+// RevokeAllTokens는 비밀번호 변경 뒤 해당 계정의 모든 활성 Refresh Token을 폐기합니다.
 func (r *PostgresAuthRepository) RevokeAllTokens(ctx context.Context, userID string) error {
 	_, err := r.Pool.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE user_id=$1 AND revoked_at IS NULL`, userID)
 	return err
 }
 
+// RotateRefresh는 기존 토큰을 폐기하고 새 토큰을 발급하는 과정을 한 트랜잭션으로 처리합니다.
 func (r *PostgresAuthRepository) RotateRefresh(ctx context.Context, raw string, tokenManager security.TokenManager, refreshTTL time.Duration) (model.Tokens, error) {
-	// FOR UPDATE로 같은 토큰에 대한 동시 재발급을 직렬화하고, 기존 토큰 폐기와
-	// 새 토큰 삽입을 한 트랜잭션에서 처리합니다. 성공하면 기존 행은 revoked가 되고
-	// 새 해시 행이 active가 됩니다. 중간 단계가 실패하면 defer Rollback이 변경을 취소합니다.
+	// FOR UPDATE가 같은 토큰을 동시에 재발급하는 요청을 직렬화합니다.
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
 		return model.Tokens{}, err
@@ -85,6 +83,7 @@ func (r *PostgresAuthRepository) RotateRefresh(ctx context.Context, raw string, 
 	return model.Tokens{AccessToken: access, TokenType: "Bearer", ExpiresIn: int64(tokenManager.TTL.Seconds()), RefreshToken: newRaw, RefreshExpiresAt: newExpires}, nil
 }
 
+// ResetPassword는 비밀번호를 바꾸고 활성 Refresh Token을 한 트랜잭션에서 폐기합니다.
 func (r *PostgresAuthRepository) ResetPassword(ctx context.Context, userID, passwordHash string) error {
 	// 비밀번호 변경과 기존 refresh token 폐기를 같은 트랜잭션으로 묶어,
 	// 변경은 되었지만 이전 세션이 살아남는 중간 상태를 방지합니다.

@@ -18,10 +18,8 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
+// main은 설정과 인프라를 준비하고 인증 API의 의존성을 조립한 뒤 서버를 시작합니다.
 func main() {
-	// main은 비즈니스 로직을 담지 않고 "설정 → 연결 → repository → service →
-	// handler → router" 순서로 객체를 조립합니다. 팀원이 auth 서비스 내부를
-	// 수정해도 애플리케이션 시작 순서는 이곳에서 한눈에 확인할 수 있습니다.
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
@@ -42,7 +40,6 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	// 의존성 조립 순서를 한 곳에 모아 전역 설정·DB와 도메인 흐름을 쉽게 추적합니다.
 	sender := buildMailSender(cfg)
 	tokenManager := security.TokenManager{Key: cfg.JWTKey, Issuer: cfg.Issuer, Audience: cfg.Audience, TTL: cfg.AccessTTL}
 	authRepository := authrepository.NewPostgresAuthRepository(postgres)

@@ -14,8 +14,6 @@ import (
 // newRouter는 API 경로와 middleware 실행 순서를 선언합니다.
 // 입력 검증·업무 정책·저장 쿼리는 이곳에 두지 않고 도메인 계층에 위임합니다.
 func newRouter(authHandler *authhandler.AuthHandler) *gin.Engine {
-	// 라우터는 URL과 middleware 순서만 선언합니다. 실제 입력 검증과 업무 규칙은
-	// auth 도메인 서비스로 내려보내 라우터가 비대해지지 않도록 합니다.
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery(), authHandler.CORS())
 	r.GET("/healthz", authHandler.Health)

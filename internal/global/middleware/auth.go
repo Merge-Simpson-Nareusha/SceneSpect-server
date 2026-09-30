@@ -1,7 +1,5 @@
-// Package middleware contains request authentication middleware shared by domains.
-// 역할(인가) 정책은 domain/authorization 패키지가 담당합니다. 이렇게 나누면
-// 토큰을 확인하는 인증(Authentication)과 권한을 확인하는 인가(Authorization)를
-// 서로 다른 팀이 독립적으로 수정할 수 있습니다.
+// Package middleware는 Access Token을 검증해 인증된 요청을 다음 handler로 전달합니다.
+// 역할 기반 접근 정책은 domain/authorization 패키지가 담당합니다.
 package middleware
 
 import (
@@ -16,10 +14,12 @@ import (
 
 const UserKey = "user"
 
+// Authenticator는 Bearer Token을 검증하고 인증된 사용자를 반환하는 서비스 계약입니다.
 type Authenticator interface {
 	Authenticate(context.Context, string) (security.Principal, error)
 }
 
+// Authenticate는 Authorization 헤더를 검증하고 통과한 사용자를 Gin context에 저장합니다.
 func Authenticate(authenticator Authenticator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Authorization 헤더는 "Bearer <access-token>" 두 조각이어야 합니다.
@@ -42,6 +42,7 @@ func Authenticate(authenticator Authenticator) gin.HandlerFunc {
 	}
 }
 
+// CurrentUser는 Authenticate middleware가 저장한 인증 사용자를 꺼냅니다.
 func CurrentUser(c *gin.Context) (security.Principal, bool) {
 	value, ok := c.Get(UserKey)
 	if !ok {
@@ -51,6 +52,7 @@ func CurrentUser(c *gin.Context) (security.Principal, bool) {
 	return current, ok
 }
 
+// abortUnauthorized는 요청 처리를 중단하고 공통 401 응답을 반환합니다.
 func abortUnauthorized(c *gin.Context) {
 	// 인증 실패 사유를 세분화하지 않고 같은 응답을 반환해 토큰 존재 여부가 노출되지 않게 합니다.
 	response.Unauthorized(c)

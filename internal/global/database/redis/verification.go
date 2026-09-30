@@ -19,8 +19,8 @@ if not redis.call('SET', KEYS[3], '1', 'NX', 'EX', 60) then return -1 end
 redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2])
 return 1`)
 
+// SaveCode는 가입 단계와 실패·재전송 제한을 확인한 뒤 인증코드 해시를 저장합니다.
 func (e Ephemeral) SaveCode(ctx context.Context, id, email, hash string) error {
-	// 세션 stage, 실패 횟수, 이메일 재전송 쿨다운을 모두 Redis에서 확인합니다.
 	n, err := saveCode.Run(ctx, e.Client, []string{signupKey(id), verifyKey(id), "email:cooldown:" + security.TokenHash(email)}, hash, CodeTTL.Milliseconds()).Int()
 	if err != nil {
 		return err
@@ -51,9 +51,8 @@ redis.call('DEL', KEYS[2])
 redis.call('HSET', KEYS[1], 'stage', 'verified')
 return 1`)
 
+// VerifyCode는 코드를 확인하고 실패 횟수·일회성 소비·세션 단계 변경을 원자적으로 처리합니다.
 func (e Ephemeral) VerifyCode(ctx context.Context, id, hash string) error {
-	// 비교·실패 횟수 증가·코드 삭제·stage 변경을 한 번에 수행해 동시 요청이
-	// 같은 코드를 두 번 소비하거나 실패 제한을 우회하지 못하게 합니다.
 	n, err := verifyCode.Run(ctx, e.Client, []string{signupKey(id), verifyKey(id)}, hash).Int()
 	if err != nil {
 		return err

@@ -1,4 +1,4 @@
-// Package security contains authentication primitives shared by the service layer.
+// Package security는 인증 서비스가 공유하는 토큰·비밀번호·난수·입력 검증 기능을 제공합니다.
 package security
 
 import (
@@ -10,6 +10,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/response"
 )
 
+// Claims는 Access Token에서 사용자, 세션, 역할과 토큰 만료 정보를 읽습니다.
 type Claims struct {
 	SessionID string `json:"sid"`
 	TokenUse  string `json:"token_use"`
@@ -17,12 +18,14 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// TokenManager는 서명된 Access Token을 발급하고 검증하는 설정을 보관합니다.
 type TokenManager struct {
 	Key              []byte
 	Issuer, Audience string
 	TTL              time.Duration
 }
 
+// Issue는 사용자와 세션 정보를 포함한 짧은 수명의 Access Token을 발급합니다.
 func (m TokenManager) Issue(userID, familyID, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{

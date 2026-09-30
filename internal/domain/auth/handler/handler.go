@@ -17,9 +17,7 @@ import (
 
 const refreshCookie = "scenespect_refresh"
 
-// UseCase is the transport-facing authentication boundary.
-// 핸들러는 구체적인 PostgreSQL/Redis 구현을 몰라도 되므로, 이 인터페이스를
-// 기준으로 요청을 서비스에 전달하고 응답·쿠키만 조립합니다.
+// UseCase는 HTTP handler가 인증 서비스에 요청을 전달할 때 사용하는 계약입니다.
 type UseCase interface {
 	Terms(context.Context) ([]model.Term, error)
 	StartSignup(context.Context, string, string) (model.SignupStartResult, error)
@@ -36,29 +34,29 @@ type UseCase interface {
 	FindAccount(context.Context, string) (model.AccountLookupResult, error)
 }
 
+// AuthHandler는 인증 요청을 service에 전달하고 JSON 응답과 쿠키를 구성합니다.
 type AuthHandler struct {
 	service      UseCase
 	cookieSecure bool
 	webOrigin    string
 }
 
-// NewHandler는 쿠키 정책과 허용 Origin을 핸들러에 주입합니다. 환경변수를
-// 핸들러가 직접 읽지 않게 해야 테스트에서 개발/운영 정책을 쉽게 바꿀 수 있습니다.
+// NewHandler는 인증 서비스와 브라우저 쿠키·CORS 설정을 handler에 주입합니다.
 func NewHandler(authService UseCase, cfg config.Config) *AuthHandler {
 	return &AuthHandler{service: authService, cookieSecure: cfg.CookieSecure, webOrigin: cfg.WebOrigin}
 }
 
+// Authenticator는 인증 middleware가 Access Token을 확인할 때 사용할 서비스 경계를 반환합니다.
 func (h *AuthHandler) Authenticator() UseCase {
 	return h.service
 }
 
-// Health는 외부 의존성까지 점검하지 않는 프로세스 생존 확인용 엔드포인트입니다.
-// PostgreSQL/Redis readiness는 Docker healthcheck와 서버 시작 시 Ping에서 확인합니다.
+// Health는 HTTP 프로세스의 생존 여부를 반환합니다. DB·Redis 연결은 서버 시작 시 확인합니다.
 func (h *AuthHandler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// CORS is deliberately restricted to the configured web origin because refresh tokens use cookies.
+// CORS는 Refresh Token 쿠키를 사용하는 웹 Origin만 허용합니다.
 func (h *AuthHandler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
@@ -81,9 +79,8 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 	}
 }
 
+// setRefreshCookie는 Refresh Token을 인증 API 경로에만 보내는 HttpOnly 쿠키로 설정합니다.
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, raw string, expires time.Time) {
-	// Refresh Token은 JavaScript가 읽을 수 없는 HttpOnly 쿠키로만 보냅니다.
-	// Path를 인증 API로 제한하면 다른 경로 요청에 토큰이 자동 전송되지 않습니다.
 	maxAge := int(time.Until(expires).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
@@ -100,8 +97,8 @@ func (h *AuthHandler) setRefreshCookie(c *gin.Context, raw string, expires time.
 	})
 }
 
+// clearRefreshCookie는 로그아웃이나 재발급 실패 뒤 브라우저에 남은 Refresh Token을 지웁니다.
 func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
-	// 로그아웃이나 재발급 실패 시 브라우저의 오래된 토큰도 즉시 제거합니다.
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     refreshCookie,
 		Value:    "",
@@ -114,13 +111,13 @@ func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
 	})
 }
 
+// requestIP는 rate limit 기준으로 사용할 현재 연결의 원격 주소를 반환합니다.
 func requestIP(c *gin.Context) string {
 	return c.Request.RemoteAddr
 }
 
+// statusFor는 서비스 오류를 API 응답에 사용할 HTTP 상태 코드로 바꿉니다.
 func statusFor(err error) int {
-	// 도메인 오류를 HTTP 상태로 바꾸는 책임은 transport 계층에 둡니다.
-	// 서비스는 Gin을 몰라야 하므로 상태 코드를 직접 반환하지 않습니다.
 	switch {
 	case errors.Is(err, model.ErrInvalid), errors.Is(err, model.ErrCode):
 		return http.StatusBadRequest
@@ -139,6 +136,7 @@ func statusFor(err error) int {
 	}
 }
 
+// respondError는 공통 오류 응답 형식으로 상태 코드와 오류 메시지를 반환합니다.
 func respondError(c *gin.Context, status int, err error) {
 	response.RespondError(c, status, err)
 }

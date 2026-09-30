@@ -11,9 +11,8 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
+// UserByLogin은 정규화된 이메일이나 로그인 아이디로 계정을 조회합니다.
 func (r *PostgresAuthRepository) UserByLogin(ctx context.Context, login string) (model.User, error) {
-	// service가 먼저 정규화한 이메일 또는 고정 아이디를 같은 값으로 조회합니다.
-	// 검색 결과는 비밀번호 비교와 현재 사용자 정보를 위해서만 service에 돌려줍니다.
 	var current model.User
 	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1 OR username=$1`, login).
 		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
@@ -23,6 +22,7 @@ func (r *PostgresAuthRepository) UserByLogin(ctx context.Context, login string) 
 	return current, err
 }
 
+// UserByEmail은 비밀번호 복구 등 이메일이 필요한 흐름에서 계정 정보를 조회합니다.
 func (r *PostgresAuthRepository) UserByEmail(ctx context.Context, email string) (model.User, error) {
 	var current model.User
 	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1`, email).
@@ -33,6 +33,7 @@ func (r *PostgresAuthRepository) UserByEmail(ctx context.Context, email string) 
 	return current, err
 }
 
+// UserByID는 Access Token이나 재설정 상태에 포함된 계정 ID로 계정 정보를 조회합니다.
 func (r *PostgresAuthRepository) UserByID(ctx context.Context, id string) (model.User, error) {
 	var current model.User
 	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE id=$1`, id).
@@ -43,12 +44,14 @@ func (r *PostgresAuthRepository) UserByID(ctx context.Context, id string) (model
 	return current, err
 }
 
+// EmailExists는 가입 시작 시 같은 이메일의 계정이 있는지 확인합니다.
 func (r *PostgresAuthRepository) EmailExists(ctx context.Context, email string) (bool, error) {
 	var exists bool
 	err := r.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)`, email).Scan(&exists)
 	return exists, err
 }
 
+// CreateUserWithTerms는 필수 약관 동의를 검증하고 계정과 동의 이력을 함께 저장합니다.
 func (r *PostgresAuthRepository) CreateUserWithTerms(ctx context.Context, signup model.Signup, consents []model.Consent) (model.User, error) {
 	// 가입 화면에서 전달한 ID 목록을 신뢰하지 않고 현재 active 약관을 기준으로 검증합니다.
 	terms, err := r.Terms(ctx)

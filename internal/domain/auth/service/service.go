@@ -1,5 +1,4 @@
-// Package service는 회원가입·로그인·계정 복구의 진행 순서와 규칙을 담당합니다.
-// handler나 PostgreSQL repository 구현을 import하지 않고 인터페이스로 협력합니다.
+// Package service는 회원가입·로그인·계정 복구 흐름과 인증 정책을 담당합니다.
 package service
 
 import (
@@ -12,9 +11,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
-// AuthRepository는 서비스가 저장소에 요구하는 동작입니다.
-// 사용하는 쪽인 service에 인터페이스를 두면 PostgreSQL 구현을 직접 import하지
-// 않아도 됩니다. main에서 같은 메서드를 가진 repository를 연결합니다.
+// AuthRepository는 인증 service가 영속 저장소에 요청하는 작업을 정의합니다.
 type AuthRepository interface {
 	UserByLogin(context.Context, string) (model.User, error)
 	UserByEmail(context.Context, string) (model.User, error)
@@ -29,9 +26,7 @@ type AuthRepository interface {
 	ResetPassword(context.Context, string, string) error
 }
 
-// SignupCache keeps unfinished signup and reset flows in Redis with TTLs.
-// auth 서비스는 Redis 명령을 직접 호출하지 않고 이 계약만 사용합니다.
-// 그래서 저장소를 메모리 fake로 바꿔 회원가입 단계 테스트를 만들 수 있습니다.
+// SignupCache는 Redis에 보관하는 임시 가입·인증·재설정 데이터의 작업을 정의합니다.
 type SignupCache interface {
 	CreateSignup(context.Context, string, string, string) error
 	SetPassword(context.Context, string, string) error
@@ -44,6 +39,7 @@ type SignupCache interface {
 	ConsumeReset(context.Context, string) (redisdb.ResetState, error)
 }
 
+// AuthService는 인증 흐름을 조정하고 저장소·메일·토큰 구현을 연결합니다.
 type AuthService struct {
 	// repository는 영속 데이터, cache는 만료가 필요한 임시 데이터만 담당합니다.
 	// 두 저장소의 수명과 장애 특성이 다르므로 하나의 거대한 저장소로 합치지 않습니다.
@@ -70,8 +66,7 @@ func NewAuthService(repo AuthRepository, ephemeral SignupCache, sender mailer.Se
 	}
 }
 
+// Terms는 회원가입 화면에 표시할 현재 활성 약관을 조회합니다.
 func (s *AuthService) Terms(ctx context.Context) ([]model.Term, error) {
-	// 약관 조회는 읽기 전용 repository 호출로 끝나며, 가입 완료 검증은
-	// 클라이언트가 보낸 목록이 아니라 같은 repository의 현재 약관을 기준으로 합니다.
 	return s.repository.Terms(ctx)
 }

@@ -19,6 +19,7 @@ const (
 	ResetTTL  = 15 * time.Minute
 )
 
+// Ephemeral은 만료가 필요한 가입·인증·재설정 데이터를 Redis에서 처리합니다.
 type Ephemeral struct{ Client *goredis.Client }
 
 // NewRedis는 HTTP 서버를 시작하기 전에 Redis 접속 문자열을 읽고 연결 가능 여부를 확인합니다.
@@ -37,10 +38,13 @@ func NewRedis(ctx context.Context, redisURL string) (*goredis.Client, error) {
 	return client, nil
 }
 
+// SignupData는 Redis의 임시 가입 세션에서 읽은 이메일·닉네임·비밀번호 해시입니다.
 type SignupData struct {
 	Email, Nickname, PasswordHash string
 }
 
-// 내부 키에는 세션 ID 원문 대신 해시를 사용해 로그나 Redis key 목록에 자격 문자열이 드러나지 않게 합니다.
+// signupKey는 원문 가입 세션 ID를 노출하지 않도록 해시한 Redis 키를 반환합니다.
 func signupKey(id string) string { return "signup:session:" + security.TokenHash(id) }
+
+// verifyKey는 가입 세션별 이메일 인증코드 Redis 키를 반환합니다.
 func verifyKey(id string) string { return "email:verify:" + security.TokenHash(id) }
