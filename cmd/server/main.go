@@ -2,26 +2,26 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth"
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/user"
+	authhandler "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth/handler"
+	authrepository "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth/repository"
+	authservice "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth/service"
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/config"
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/database"
+	postgresdb "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/database/postgres"
+	redisdb "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/database/redis"
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/mailer"
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/middleware"
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
 func main() {
+	// main은 비즈니스 로직을 담지 않고 "설정 → 연결 → repository → service →
+	// handler → router" 순서로 객체를 조립합니다. 팀원이 auth 서비스 내부를
+	// 수정해도 애플리케이션 시작 순서는 이곳에서 한눈에 확인할 수 있습니다.
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
@@ -30,13 +30,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	postgres, err := database.NewPostgres(ctx, cfg.DatabaseURL)
+	postgres, err := postgresdb.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer postgres.Close()
 
-	redisClient, err := database.NewRedis(ctx, cfg.RedisURL)
+	redisClient, err := redisdb.NewRedis(ctx, cfg.RedisURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,11 +45,10 @@ func main() {
 	// 의존성 조립 순서를 한 곳에 모아 전역 설정·DB와 도메인 흐름을 쉽게 추적합니다.
 	sender := buildMailSender(cfg)
 	tokenManager := security.TokenManager{Key: cfg.JWTKey, Issuer: cfg.Issuer, Audience: cfg.Audience, TTL: cfg.AccessTTL}
-	authRepository := auth.NewPostgresAuthRepository(postgres)
-	authService := auth.NewAuthService(authRepository, database.Ephemeral{Client: redisClient}, sender, tokenManager, cfg.CodeKey, cfg.BcryptCost, cfg.RefreshTTL)
-	authHandler := auth.NewHandler(authService, cfg)
-	userHandler := user.NewHandler(authService)
-	server := newHTTPServer(cfg.Address, newRouter(authHandler, userHandler))
+	authRepository := authrepository.NewPostgresAuthRepository(postgres)
+	authService := authservice.NewAuthService(authRepository, redisdb.Ephemeral{Client: redisClient}, sender, tokenManager, cfg.CodeKey, cfg.BcryptCost, cfg.RefreshTTL)
+	authHandler := authhandler.NewHandler(authService, cfg)
+	server := newHTTPServer(cfg.Address, newRouter(authHandler))
 
 	go serve(server, stop)
 	<-ctx.Done()
@@ -59,39 +58,8 @@ func main() {
 	_ = server.Shutdown(shutdownContext)
 }
 
-func newRouter(authHandler *auth.AuthHandler, userHandler *user.Handler) *gin.Engine {
-	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery(), authHandler.CORS())
-	r.GET("/healthz", authHandler.Health)
-
-	api := r.Group("/api/v1")
-	authRoutes := api.Group("/auth")
-	authRoutes.GET("/signup/terms", authHandler.SignupTerms)
-	authRoutes.POST("/signup/start", authHandler.SignupStart)
-	authRoutes.POST("/signup/password", authHandler.SignupPassword)
-	authRoutes.POST("/signup/email/send", authHandler.SignupEmailSend)
-	authRoutes.POST("/signup/email/verify", authHandler.SignupEmailVerify)
-	authRoutes.POST("/signup/terms", authHandler.SignupComplete)
-	authRoutes.POST("/login", authHandler.Login)
-	authRoutes.POST("/token/refresh", authHandler.Refresh)
-	authRoutes.POST("/logout", authHandler.Logout)
-	authRoutes.POST("/password/forgot", authHandler.PasswordForgot)
-	authRoutes.POST("/password/reset", authHandler.PasswordReset)
-	authRoutes.POST("/account/find", authHandler.AccountFind)
-
-	protected := api.Group("")
-	protected.Use(middleware.Authenticate(authHandler.Authenticator()))
-	protected.GET("/me", userHandler.Me)
-	protected.PATCH("/me/nickname", userHandler.UpdateNickname)
-
-	admin := api.Group("/admin")
-	admin.Use(middleware.Authenticate(authHandler.Authenticator()), middleware.RequireRole("ADMIN"))
-	admin.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "scope": "admin"})
-	})
-	return r
-}
-
+// buildMailSender는 개발 환경에서만 로그 출력 Sender를 허용하고 나머지는 SMTP를 사용합니다.
+// 콘솔 구현은 인증 코드와 재설정 토큰을 기록하므로 운영에서 선택되지 않도록 환경 조건을 확인합니다.
 func buildMailSender(cfg config.Config) mailer.Sender {
 	if cfg.Environment == "development" && cfg.SMTPHost == "console" {
 		return mailer.Console{Logger: log.Default()}
@@ -103,23 +71,5 @@ func buildMailSender(cfg config.Config) mailer.Sender {
 		Password:      cfg.SMTPPassword,
 		From:          cfg.MailFrom,
 		AllowInsecure: cfg.SMTPInsecure,
-	}
-}
-
-func newHTTPServer(address string, handler http.Handler) *http.Server {
-	return &http.Server{
-		Addr:              address,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-}
-
-func serve(server *http.Server, stop context.CancelFunc) {
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Printf("server: %v", err)
-		stop()
 	}
 }

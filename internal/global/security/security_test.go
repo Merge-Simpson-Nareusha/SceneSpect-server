@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/user"
+	authmodel "github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/domain/auth/model"
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
@@ -26,7 +26,7 @@ func TestNormalizeEmailAndMask(t *testing.T) {
 	if _, err := security.NormalizeEmail(`a"b@example.com`); err == nil {
 		t.Fatal("quoted local part must be rejected")
 	}
-	if got := user.MaskEmail("kimjaeyun@example.com"); got != "ki*******@example.com" {
+	if got := authmodel.MaskEmail("kimjaeyun@example.com"); got != "ki*******@example.com" {
 		t.Fatalf("mask: %q", got)
 	}
 }
