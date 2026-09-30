@@ -14,23 +14,35 @@ docker compose up --build
 
 ## 패키지 구조
 
-책임별 `cmd` + `internal` 경계를 사용합니다. `cmd/server`는 의존성 조립과 서버 생명주기만 담당하고, 도메인별 인증·사용자 기능은 `internal/domain` 아래에서 관리합니다.
+책임별 `cmd` + `internal` 경계를 사용합니다. `cmd/server`는 의존성 조립과 서버 생명주기만 담당하고, 인증과 인가 정책은 `internal/domain` 아래에서 관리합니다.
 
 ```text
 cmd/
-├── server/main.go              # 의존성 조립과 HTTP 서버 실행
+├── server/
+│   ├── main.go                 # 의존성 조립과 종료
+│   ├── router.go               # 인증·관리자 경로와 middleware 순서
+│   └── server.go               # HTTP 실행 시간 제한
 └── migrate/main.go             # Goose migration 실행
 internal/
-├── global/
-│   ├── config/                 # 환경변수 검증
-│   ├── database/               # PostgreSQL pool와 Redis TTL 상태
-│   ├── mailer/                 # SMTP/콘솔 메일 어댑터
-│   ├── middleware/             # Access Token 인증과 RBAC
-│   ├── response/               # 공통 오류와 JSON 응답
-│   └── security/               # JWT, bcrypt, 난수, 입력 검증
-└── domain/
-    ├── auth/                   # 회원가입·로그인·토큰·약관 도메인
-    ├── user/                   # 내 정보와 닉네임 도메인
+├── domain/
+│   ├── auth/
+│   │   ├── handler/            # 인증 HTTP 요청·응답·쿠키
+│   │   ├── service/            # 가입·로그인·세션·계정 복구 흐름
+│   │   ├── repository/         # 회원·약관·토큰 PostgreSQL 쿼리
+│   │   └── model/              # 계정·약관·토큰 데이터와 도메인 오류
+│   └── authorization/
+│       ├── middleware/         # 역할 기반 접근 허용·거절
+│       ├── service/            # 인증 주체 역할 판단
+│       └── model/              # USER·ADMIN 역할
+└── global/
+    ├── config/                 # 환경변수 검증
+    ├── database/
+    │   ├── postgres/           # PostgreSQL 연결 풀
+    │   └── redis/              # 가입·인증코드·요청 제한·재설정 상태
+    ├── mailer/                 # 발송 계약·SMTP·개발용 콘솔
+    ├── middleware/             # Access Token 인증
+    ├── response/               # 공통 오류와 JSON 응답
+    └── security/               # JWT, bcrypt, 난수, 입력 검증·Principal
 ```
 
 가입 중간 상태는 영속 회원이 아니므로 Redis에 TTL로 저장합니다. 이렇게 하면 미완료 가입을 PostgreSQL에서 별도 정리할 배치 없이 자동 만료시킬 수 있고, 인증코드·rate limit·비밀번호 재설정 토큰과 동일한 만료 정책으로 관리할 수 있습니다. 최종 회원·약관 동의·Refresh Token hash는 PostgreSQL에 저장합니다.
@@ -45,7 +57,6 @@ internal/
 | 인증코드 발송/확인 | POST | `/api/v1/auth/signup/email/send`, `/api/v1/auth/signup/email/verify` |
 | 약관 동의 및 가입 완료 | POST | `/api/v1/auth/signup/terms` |
 | 로그인/토큰 재발급/로그아웃 | POST | `/api/v1/auth/login`, `/api/v1/auth/token/refresh`, `/api/v1/auth/logout` |
-| 내 정보/닉네임 | GET/PATCH | `/api/v1/me`, `/api/v1/me/nickname` |
 | 비밀번호 찾기/재설정 | POST | `/api/v1/auth/password/forgot`, `/api/v1/auth/password/reset` |
 | 계정 찾기 | POST | `/api/v1/auth/account/find` |
 
@@ -66,7 +77,7 @@ Access Token은 `Authorization: Bearer ...`로 전달하고, Refresh Token은 `H
 
 ## 설계 메모
 
-- 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 가입 시 username은 고정되고 nickname만 변경됩니다.
+- 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 현재 별도 프로필 수정 API는 제공하지 않습니다.
 - 인증코드는 6자리·5분 TTL이며 HMAC으로 Redis에 저장합니다. 발송 쿨다운, 시간당 발송 제한, 5회 실패 제한을 Redis Lua 스크립트로 원자 처리합니다.
 
 ## 검증
