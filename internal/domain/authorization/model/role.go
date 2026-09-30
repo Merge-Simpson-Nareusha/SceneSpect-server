@@ -9,7 +9,7 @@ const (
 	AdminRole Role = "ADMIN"
 )
 
-// HasRole은 현재 역할이 요구 역할과 정확히 일치하는지 확인합니다.
+// # 역할 권한 비교 기능
 func HasRole(current string, required Role) bool {
 	return current == string(required)
 }

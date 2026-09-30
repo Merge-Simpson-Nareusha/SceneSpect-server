@@ -15,7 +15,7 @@ import (
 
 var sixDigitCode = regexp.MustCompile(`^[0-9]{6}$`)
 
-// StartSignup은 이메일 중복을 확인하고 기본 닉네임을 정한 뒤 Redis에 임시 가입 세션을 만듭니다.
+// # 가입 세션 시작 기능
 func (s *AuthService) StartSignup(ctx context.Context, email, requestIP string) (model.SignupStartResult, error) {
 	if err := s.cache.Limit(ctx, "signup-start", requestIP, 10, time.Hour); err != nil {
 		return model.SignupStartResult{}, err
@@ -43,7 +43,7 @@ func (s *AuthService) StartSignup(ctx context.Context, email, requestIP string) 
 	return model.SignupStartResult{SignupSessionID: sessionID, Email: normalized, Nickname: nickname, ExpiresIn: int64(redisdb.SignupTTL.Seconds())}, nil
 }
 
-// SetSignupPassword는 email 단계의 세션에 비밀번호 해시를 저장하고 다음 단계로 이동합니다.
+// # 가입 비밀번호 설정 기능
 func (s *AuthService) SetSignupPassword(ctx context.Context, sessionID, password, confirmation string) error {
 	if password != confirmation {
 		return model.ErrInvalid
@@ -58,8 +58,7 @@ func (s *AuthService) SetSignupPassword(ctx context.Context, sessionID, password
 	return s.cache.SetPassword(ctx, sessionID, hash)
 }
 
-// SendSignupCode는 password 단계 세션에 6자리 코드를 보내고 Redis에는 HMAC 값으로 저장합니다.
-// 발송 횟수와 재전송 대기 시간은 IP·이메일 기준으로 제한합니다.
+// # 가입 이메일 인증 코드 발송 기능
 func (s *AuthService) SendSignupCode(ctx context.Context, sessionID, requestIP string) (model.VerificationResult, error) {
 	signup, err := s.cache.Signup(ctx, sessionID, "password")
 	if err != nil {
@@ -84,9 +83,7 @@ func (s *AuthService) SendSignupCode(ctx context.Context, sessionID, requestIP s
 	return model.VerificationResult{ExpiresIn: int64(redisdb.CodeTTL.Seconds()), ResendAfter: 60}, nil
 }
 
-// VerifySignupCode는 입력 형식부터 확인하고 일치 여부는 Redis에서 검사합니다.
-// 맞는 코드는 한 번만 소비되고 세션은 verified 단계로 이동합니다. 틀린 코드는
-// 재전송으로 초기화되지 않는 누적 실패 횟수를 올립니다.
+// # 가입 이메일 인증 코드 확인 기능
 func (s *AuthService) VerifySignupCode(ctx context.Context, sessionID, code string) error {
 	if !sixDigitCode.MatchString(code) {
 		return model.ErrCode
@@ -94,8 +91,7 @@ func (s *AuthService) VerifySignupCode(ctx context.Context, sessionID, code stri
 	return s.cache.VerifyCode(ctx, sessionID, security.CodeHash(s.codeKey, sessionID, code))
 }
 
-// CompleteSignup은 이메일 인증과 필수 약관 동의를 확인해 회원을 생성하고 로그인 토큰을 발급합니다.
-// 회원 생성 후 토큰 발급이 실패하면 가입을 반복하지 않고 일반 로그인으로 이어가야 합니다.
+// # 약관 동의 확인 및 회원가입 완료 기능
 func (s *AuthService) CompleteSignup(ctx context.Context, sessionID string, consents []model.Consent) (model.Tokens, error) {
 	signupData, err := s.cache.Signup(ctx, sessionID, "verified")
 	if err != nil {

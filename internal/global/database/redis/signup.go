@@ -17,7 +17,7 @@ redis.call('HSET', KEYS[1], 'email', ARGV[1], 'nickname', ARGV[2], 'stage', 'ema
 redis.call('PEXPIRE', KEYS[1], ARGV[3])
 return 1`)
 
-// CreateSignup은 가입 이메일과 기본 닉네임을 TTL이 있는 Redis 세션으로 저장합니다.
+// # 가입 세션 생성 기능
 func (e Ephemeral) CreateSignup(ctx context.Context, id, email, nickname string) error {
 	n, err := createSignup.Run(ctx, e.Client, []string{signupKey(id)}, email, nickname, SignupTTL.Milliseconds()).Int()
 	if err != nil {
@@ -34,7 +34,7 @@ if redis.call('HGET', KEYS[1], 'stage') ~= 'email' then return 0 end
 redis.call('HSET', KEYS[1], 'password_hash', ARGV[1], 'stage', 'password')
 return 1`)
 
-// SetPassword는 email 단계 세션에만 비밀번호 해시를 저장하고 password 단계로 이동합니다.
+// # 가입 비밀번호 저장 기능
 func (e Ephemeral) SetPassword(ctx context.Context, id, hash string) error {
 	n, err := setPassword.Run(ctx, e.Client, []string{signupKey(id)}, hash).Int()
 	if err != nil {
@@ -46,7 +46,7 @@ func (e Ephemeral) SetPassword(ctx context.Context, id, hash string) error {
 	return nil
 }
 
-// Signup은 세션 단계가 예상한 값과 일치할 때 임시 가입 정보를 반환합니다.
+// # 가입 세션 조회 기능
 func (e Ephemeral) Signup(ctx context.Context, id, stage string) (SignupData, error) {
 	values, err := e.Client.HGetAll(ctx, signupKey(id)).Result()
 	if err != nil {
@@ -61,7 +61,7 @@ func (e Ephemeral) Signup(ctx context.Context, id, stage string) (SignupData, er
 	return SignupData{Email: values["email"], Nickname: values["nickname"], PasswordHash: values["password_hash"]}, nil
 }
 
-// DeleteSignup은 가입 완료 뒤 임시 세션과 인증코드를 함께 삭제합니다.
+// # 가입 세션 삭제 기능
 func (e Ephemeral) DeleteSignup(ctx context.Context, id string) error {
 	return e.Client.Del(ctx, signupKey(id), verifyKey(id)).Err()
 }

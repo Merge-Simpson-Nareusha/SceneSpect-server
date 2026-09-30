@@ -19,7 +19,7 @@ if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
 if n > tonumber(ARGV[2]) then return 0 end
 return 1`)
 
-// Limit은 요청 종류와 이메일·IP별 고정 구간 횟수를 세고, 초과 시 제한 오류를 반환합니다.
+// # 요청 횟수 제한 기능
 func (e Ephemeral) Limit(ctx context.Context, bucket, identity string, limit int, window time.Duration) error {
 	// Redis 키에 이메일이나 IP 원문이 남지 않도록 identity를 해시합니다.
 	n, err := rateLimit.Run(ctx, e.Client, []string{"ratelimit:" + bucket + ":" + security.TokenHash(identity)}, window.Milliseconds(), limit).Int()

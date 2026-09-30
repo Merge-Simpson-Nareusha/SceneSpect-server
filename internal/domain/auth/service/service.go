@@ -52,8 +52,7 @@ type AuthService struct {
 	refreshTTL time.Duration
 }
 
-// NewAuthService는 애플리케이션 조립부에서 한 번만 호출하는 생성자입니다.
-// 토큰 키, bcrypt 비용, TTL 같은 보안 정책을 인자로 받아 전역 변수 의존을 피합니다.
+// # 인증 서비스 생성 기능
 func NewAuthService(repo AuthRepository, ephemeral SignupCache, sender mailer.Sender, tokens security.TokenManager, codeKey []byte, bcryptCost int, refreshTTL time.Duration) *AuthService {
 	return &AuthService{
 		repository: repo,
@@ -66,7 +65,7 @@ func NewAuthService(repo AuthRepository, ephemeral SignupCache, sender mailer.Se
 	}
 }
 
-// Terms는 회원가입 화면에 표시할 현재 활성 약관을 조회합니다.
+// # 약관 목록 조회 기능
 func (s *AuthService) Terms(ctx context.Context) ([]model.Term, error) {
 	return s.repository.Terms(ctx)
 }

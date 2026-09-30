@@ -19,7 +19,7 @@ type Authenticator interface {
 	Authenticate(context.Context, string) (security.Principal, error)
 }
 
-// Authenticate는 Authorization 헤더를 검증하고 통과한 사용자를 Gin context에 저장합니다.
+// # 요청 사용자 인증 기능
 func Authenticate(authenticator Authenticator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Authorization 헤더는 "Bearer <access-token>" 두 조각이어야 합니다.
@@ -42,7 +42,7 @@ func Authenticate(authenticator Authenticator) gin.HandlerFunc {
 	}
 }
 
-// CurrentUser는 Authenticate middleware가 저장한 인증 사용자를 꺼냅니다.
+// # 인증 사용자 조회 기능
 func CurrentUser(c *gin.Context) (security.Principal, bool) {
 	value, ok := c.Get(UserKey)
 	if !ok {
@@ -52,7 +52,7 @@ func CurrentUser(c *gin.Context) (security.Principal, bool) {
 	return current, ok
 }
 
-// abortUnauthorized는 요청 처리를 중단하고 공통 401 응답을 반환합니다.
+// # 인증 실패 처리 기능
 func abortUnauthorized(c *gin.Context) {
 	// 인증 실패 사유를 세분화하지 않고 같은 응답을 반환해 토큰 존재 여부가 노출되지 않게 합니다.
 	response.Unauthorized(c)

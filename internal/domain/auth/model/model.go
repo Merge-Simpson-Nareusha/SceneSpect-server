@@ -29,7 +29,7 @@ var (
 // 사용자 프로필 전용 도메인 패키지는 만들지 않습니다.
 type User = security.Principal
 
-// MaskEmail은 계정 찾기 응답에서 이메일 아이디 부분을 가려 전체 주소 노출을 줄입니다.
+// # 이메일 주소 마스킹 기능
 func MaskEmail(email string) string {
 	parts := strings.SplitN(email, "@", 2)
 	if len(parts) != 2 {

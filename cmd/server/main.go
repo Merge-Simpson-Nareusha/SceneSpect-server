@@ -18,7 +18,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/security"
 )
 
-// main은 설정과 인프라를 준비하고 인증 API의 의존성을 조립한 뒤 서버를 시작합니다.
+// # 인증 서버 시작 기능
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -55,8 +55,7 @@ func main() {
 	_ = server.Shutdown(shutdownContext)
 }
 
-// buildMailSender는 개발 환경에서만 로그 출력 Sender를 허용하고 나머지는 SMTP를 사용합니다.
-// 콘솔 구현은 인증 코드와 재설정 토큰을 기록하므로 운영에서 선택되지 않도록 환경 조건을 확인합니다.
+// # 이메일 발송기 구성 기능
 func buildMailSender(cfg config.Config) mailer.Sender {
 	if cfg.Environment == "development" && cfg.SMTPHost == "console" {
 		return mailer.Console{Logger: log.Default()}

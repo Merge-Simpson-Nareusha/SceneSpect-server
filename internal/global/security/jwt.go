@@ -25,7 +25,7 @@ type TokenManager struct {
 	TTL              time.Duration
 }
 
-// Issue는 사용자와 세션 정보를 포함한 짧은 수명의 Access Token을 발급합니다.
+// # JWT 발급 기능
 func (m TokenManager) Issue(userID, familyID, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
@@ -45,7 +45,7 @@ func (m TokenManager) Issue(userID, familyID, role string) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Key)
 }
 
-// Parse는 서명뿐 아니라 알고리즘·발급자·대상·만료·토큰 용도까지 검증합니다.
+// # JWT 검증 및 파싱 기능
 func (m TokenManager) Parse(raw string) (*Claims, error) {
 	if len(raw) > 4096 {
 		return nil, response.ErrUnauthorized

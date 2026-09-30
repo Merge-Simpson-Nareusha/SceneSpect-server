@@ -22,7 +22,7 @@ type Config struct {
 	SMTPInsecure                                         bool
 }
 
-// Load는 잘못된 보안 설정을 시작 시 거부해 운영 중 취약한 기본값으로 실행되지 않게 합니다.
+// # 환경 설정 로드 기능
 func Load() (Config, error) {
 	c := Config{
 		Environment: env("APP_ENV", "development"), Address: env("HTTP_ADDR", ":8080"),
@@ -72,7 +72,7 @@ func Load() (Config, error) {
 	return c, nil
 }
 
-// secret은 환경 변수에서 Base64 비밀값을 읽고 최소 길이를 확인합니다.
+// # 필수 비밀 설정 조회 기능
 func secret(name string) ([]byte, error) {
 	b, err := base64.StdEncoding.DecodeString(os.Getenv(name))
 	if err != nil || len(b) < 32 {
@@ -81,7 +81,7 @@ func secret(name string) ([]byte, error) {
 	return b, nil
 }
 
-// env는 비어 있지 않은 환경 변수 값을 사용하고, 없으면 기본값을 반환합니다.
+// # 환경 변수 조회 기능
 func env(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v

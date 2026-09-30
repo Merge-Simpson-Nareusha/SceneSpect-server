@@ -12,7 +12,7 @@ import (
 //go:embed *.sql
 var files embed.FS
 
-// Up은 서버 실행과 분리된 명령으로 호출합니다. 배포 시 스키마 변경을 명시적으로 검토할 수 있습니다.
+// # 데이터베이스 마이그레이션 적용 기능
 func Up(ctx context.Context, databaseURL string) error {
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {

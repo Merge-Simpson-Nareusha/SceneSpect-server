@@ -11,8 +11,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/internal/global/middleware"
 )
 
-// newRouter는 API 경로와 middleware 실행 순서를 선언합니다.
-// 입력 검증·업무 정책·저장 쿼리는 이곳에 두지 않고 도메인 계층에 위임합니다.
+// # HTTP 라우터 구성 기능
 func newRouter(authHandler *authhandler.AuthHandler) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery(), authHandler.CORS())

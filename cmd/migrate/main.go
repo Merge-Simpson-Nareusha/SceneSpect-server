@@ -8,7 +8,7 @@ import (
 	"github.com/Merge-Simpson-Nareusha/SceneSpect-server/migrations"
 )
 
-// main은 환경 설정을 읽고 내장된 DB migration을 적용합니다.
+// # 데이터베이스 마이그레이션 실행 기능
 func main() {
 	cfg, err := config.Load()
 	if err != nil {

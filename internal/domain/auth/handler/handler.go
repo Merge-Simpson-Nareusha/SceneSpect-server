@@ -41,22 +41,22 @@ type AuthHandler struct {
 	webOrigin    string
 }
 
-// NewHandler는 인증 서비스와 브라우저 쿠키·CORS 설정을 handler에 주입합니다.
+// # 인증 핸들러 생성 기능
 func NewHandler(authService UseCase, cfg config.Config) *AuthHandler {
 	return &AuthHandler{service: authService, cookieSecure: cfg.CookieSecure, webOrigin: cfg.WebOrigin}
 }
 
-// Authenticator는 인증 middleware가 Access Token을 확인할 때 사용할 서비스 경계를 반환합니다.
+// # 인증 서비스 조회 기능
 func (h *AuthHandler) Authenticator() UseCase {
 	return h.service
 }
 
-// Health는 HTTP 프로세스의 생존 여부를 반환합니다. DB·Redis 연결은 서버 시작 시 확인합니다.
+// # 헬스 상태 응답 기능
 func (h *AuthHandler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// CORS는 Refresh Token 쿠키를 사용하는 웹 Origin만 허용합니다.
+// # CORS 미들웨어 구성 기능
 func (h *AuthHandler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
@@ -79,7 +79,7 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 	}
 }
 
-// setRefreshCookie는 Refresh Token을 인증 API 경로에만 보내는 HttpOnly 쿠키로 설정합니다.
+// # Refresh Token 쿠키 설정 기능
 func (h *AuthHandler) setRefreshCookie(c *gin.Context, raw string, expires time.Time) {
 	maxAge := int(time.Until(expires).Seconds())
 	if maxAge < 0 {
@@ -97,7 +97,7 @@ func (h *AuthHandler) setRefreshCookie(c *gin.Context, raw string, expires time.
 	})
 }
 
-// clearRefreshCookie는 로그아웃이나 재발급 실패 뒤 브라우저에 남은 Refresh Token을 지웁니다.
+// # Refresh Token 쿠키 삭제 기능
 func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     refreshCookie,
@@ -111,12 +111,12 @@ func (h *AuthHandler) clearRefreshCookie(c *gin.Context) {
 	})
 }
 
-// requestIP는 rate limit 기준으로 사용할 현재 연결의 원격 주소를 반환합니다.
+// # 요청 IP 조회 기능
 func requestIP(c *gin.Context) string {
 	return c.Request.RemoteAddr
 }
 
-// statusFor는 서비스 오류를 API 응답에 사용할 HTTP 상태 코드로 바꿉니다.
+// # API 오류 상태 코드 결정 기능
 func statusFor(err error) int {
 	switch {
 	case errors.Is(err, model.ErrInvalid), errors.Is(err, model.ErrCode):
@@ -136,7 +136,7 @@ func statusFor(err error) int {
 	}
 }
 
-// respondError는 공통 오류 응답 형식으로 상태 코드와 오류 메시지를 반환합니다.
+// # API 오류 응답 작성 기능
 func respondError(c *gin.Context, status int, err error) {
 	response.RespondError(c, status, err)
 }

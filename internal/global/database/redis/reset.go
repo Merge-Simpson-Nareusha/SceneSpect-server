@@ -16,7 +16,7 @@ type ResetState struct {
 	PasswordVersion int64  `json:"version"`
 }
 
-// SaveReset은 재설정 토큰의 해시 키에 사용자 ID와 발급 당시 비밀번호 버전을 TTL과 함께 저장합니다.
+// # 비밀번호 재설정 토큰 저장 기능
 func (e Ephemeral) SaveReset(ctx context.Context, raw, userID string, passwordVersion int64) error {
 	value, err := json.Marshal(ResetState{userID, passwordVersion})
 	if err != nil {
@@ -32,7 +32,7 @@ if not value then return false end
 redis.call('DEL', KEYS[1])
 return value`)
 
-// ConsumeReset은 재설정 토큰을 한 번만 소비하고 발급 당시 비밀번호 버전을 반환합니다.
+// # 비밀번호 재설정 토큰 소비 기능
 func (e Ephemeral) ConsumeReset(ctx context.Context, raw string) (ResetState, error) {
 	var state ResetState
 	value, err := consumeReset.Run(ctx, e.Client, []string{"password:reset:" + security.TokenHash(raw)}).Result()
@@ -52,7 +52,7 @@ func (e Ephemeral) ConsumeReset(ctx context.Context, raw string) (ResetState, er
 	return state, nil
 }
 
-// DeleteReset은 재설정 토큰의 해시 키를 Redis에서 삭제합니다.
+// # 비밀번호 재설정 토큰 삭제 기능
 func (e Ephemeral) DeleteReset(ctx context.Context, raw string) error {
 	return e.Client.Del(ctx, "password:reset:"+security.TokenHash(raw)).Err()
 }
