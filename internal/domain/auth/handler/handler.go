@@ -32,6 +32,7 @@ type UseCase interface {
 	ForgotPassword(context.Context, string, string) error
 	ResetPassword(context.Context, string, string, string) error
 	FindAccount(context.Context, string) (model.AccountLookupResult, error)
+	UpdateNickname(context.Context, string, string) (model.User, error)
 }
 
 // AuthHandler는 인증 요청을 service에 전달하고 JSON 응답과 쿠키를 구성합니다.
@@ -69,7 +70,7 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {
 			c.Status(http.StatusNoContent)

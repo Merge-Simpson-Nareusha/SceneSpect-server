@@ -57,6 +57,8 @@ internal/
 | 인증코드 발송/확인 | POST | `/api/v1/auth/signup/email/send`, `/api/v1/auth/signup/email/verify` |
 | 약관 동의 및 가입 완료 | POST | `/api/v1/auth/signup/terms` |
 | 로그인/토큰 재발급/로그아웃 | POST | `/api/v1/auth/login`, `/api/v1/auth/token/refresh`, `/api/v1/auth/logout` |
+| 내 정보 조회 | GET | `/api/v1/auth/me` |
+| 닉네임 수정 | PATCH | `/api/v1/auth/me/nickname` |
 | 비밀번호 찾기/재설정 | POST | `/api/v1/auth/password/forgot`, `/api/v1/auth/password/reset` |
 | 계정 찾기 | POST | `/api/v1/auth/account/find` |
 
@@ -77,7 +79,7 @@ Access Token은 `Authorization: Bearer ...`로 전달하고, Refresh Token은 `H
 
 ## 설계 메모
 
-- 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 현재 별도 프로필 수정 API는 제공하지 않습니다.
+- 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 사용자는 인증된 `/me/nickname` API로 닉네임을 변경할 수 있으며, 로그인용 `username`은 유지됩니다.
 - 인증코드는 6자리·5분 TTL이며 HMAC으로 Redis에 저장합니다. 발송 쿨다운, 시간당 발송 제한, 5회 실패 제한을 Redis Lua 스크립트로 원자 처리합니다.
 
 ## 검증

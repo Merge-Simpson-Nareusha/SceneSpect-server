@@ -65,3 +65,8 @@ type resetRequest struct {
 type findRequest struct {
 	Login string `json:"login" binding:"required"`
 }
+
+// nicknameRequest는 로그인한 사용자가 닉네임을 변경할 때 받는 요청입니다.
+type nicknameRequest struct {
+	Nickname string `json:"nickname" binding:"required"`
+}

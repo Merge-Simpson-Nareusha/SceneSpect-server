@@ -24,6 +24,7 @@ type AuthRepository interface {
 	RevokeAllTokens(context.Context, string) error
 	RotateRefresh(context.Context, string, security.TokenManager, time.Duration) (model.Tokens, error)
 	ResetPassword(context.Context, string, string) error
+	UpdateNickname(context.Context, string, string) (model.User, error)
 }
 
 // SignupCache는 Redis에 보관하는 임시 가입·인증·재설정 데이터의 작업을 정의합니다.

@@ -31,6 +31,9 @@ func newRouter(authHandler *authhandler.AuthHandler) *gin.Engine {
 	authRoutes.POST("/password/forgot", authHandler.PasswordForgot)
 	authRoutes.POST("/password/reset", authHandler.PasswordReset)
 	authRoutes.POST("/account/find", authHandler.AccountFind)
+	authRequired := middleware.Authenticate(authHandler.Authenticator())
+	authRoutes.GET("/me", authRequired, authHandler.Me)
+	authRoutes.PATCH("/me/nickname", authRequired, authHandler.NicknameUpdate)
 
 	admin := api.Group("/admin")
 	// 인증(Authentication)을 먼저 통과한 뒤 인가(Authorization) 정책을 적용합니다.

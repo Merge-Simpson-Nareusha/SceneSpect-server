@@ -79,6 +79,14 @@ func (s *AuthService) FindAccount(ctx context.Context, login string) (model.Acco
 	return model.AccountLookupResult{Email: model.MaskEmail(current.Email), Username: current.Username}, nil
 }
 
+// # 사용자 닉네임 수정 기능
+func (s *AuthService) UpdateNickname(ctx context.Context, userID, nickname string) (model.User, error) {
+	if !security.ValidNickname(nickname) {
+		return model.User{}, model.ErrInvalid
+	}
+	return s.repository.UpdateNickname(ctx, userID, nickname)
+}
+
 // # 계정 잠금 상태 확인 기능
 func isBlocked(current model.User) bool {
 	return strings.EqualFold(current.Status, "BLOCKED")

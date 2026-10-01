@@ -44,6 +44,20 @@ func (r *PostgresAuthRepository) UserByID(ctx context.Context, id string) (model
 	return current, err
 }
 
+// # 사용자 닉네임 저장 기능
+func (r *PostgresAuthRepository) UpdateNickname(ctx context.Context, userID, nickname string) (model.User, error) {
+	var current model.User
+	err := r.Pool.QueryRow(ctx, `UPDATE users SET nickname=$1,updated_at=now() WHERE id=$2 RETURNING id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at`, nickname, userID).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.User{}, model.ErrUnauthorized
+	}
+	if isUniqueViolation(err) {
+		return model.User{}, model.ErrConflict
+	}
+	return current, err
+}
+
 // # 이메일 중복 확인 기능
 func (r *PostgresAuthRepository) EmailExists(ctx context.Context, email string) (bool, error) {
 	var exists bool
