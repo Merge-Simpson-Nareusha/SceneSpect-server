@@ -4,8 +4,8 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,18 +33,43 @@ type UseCase interface {
 	ResetPassword(context.Context, string, string, string) error
 	FindAccount(context.Context, string) (model.AccountLookupResult, error)
 	UpdateNickname(context.Context, string, string) (model.User, error)
+	UpdateProfile(context.Context, string, string, string) (model.User, error)
+	UpdateDisplayTheme(context.Context, string, string) (model.User, error)
+	ChangePassword(context.Context, string, string, string, string) error
+}
+
+type OAuthUseCase interface {
+	Begin(context.Context, string, string) (string, error)
+	Callback(context.Context, string, string, string) (model.OAuthCallbackResult, error)
+	StartEmailVerification(context.Context, string, string, string) (model.VerificationResult, error)
+	VerifyEmail(context.Context, string, string) error
+	CompleteSignup(context.Context, string, string, []model.Consent) (model.Tokens, error)
 }
 
 // AuthHandler는 인증 요청을 service에 전달하고 JSON 응답과 쿠키를 구성합니다.
 type AuthHandler struct {
 	service      UseCase
+	oauth        OAuthUseCase
 	cookieSecure bool
 	webOrigin    string
+	corsOrigins  string
+	apiBaseURL   string
 }
 
 // # 인증 핸들러 생성 기능
 func NewHandler(authService UseCase, cfg config.Config) *AuthHandler {
-	return &AuthHandler{service: authService, cookieSecure: cfg.CookieSecure, webOrigin: cfg.WebOrigin}
+	return NewHandlerWithOAuth(authService, nil, cfg)
+}
+
+func NewHandlerWithOAuth(authService UseCase, oauthService OAuthUseCase, cfg config.Config) *AuthHandler {
+	return &AuthHandler{
+		service:      authService,
+		oauth:        oauthService,
+		cookieSecure: cfg.CookieSecure,
+		webOrigin:    cfg.WebOrigin,
+		corsOrigins:  cfg.CORSOrigins,
+		apiBaseURL:   cfg.APIBaseURL,
+	}
 }
 
 // # 인증 서비스 조회 기능
@@ -61,16 +86,19 @@ func (h *AuthHandler) Health(c *gin.Context) {
 func (h *AuthHandler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		if origin != "" && origin != h.webOrigin {
+		oauthCallback := strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/oauth/") && strings.HasSuffix(c.Request.URL.Path, "/callback")
+		apiOrigin := origin != "" && origin == h.apiBaseURL
+		webOrigin := origin != "" && isCORSOriginAllowed(origin, h.corsOrigins, h.webOrigin)
+		if origin != "" && !webOrigin && !apiOrigin && !oauthCallback {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin is not allowed"})
 			return
 		}
-		if origin != "" {
+		if webOrigin || apiOrigin {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {
 			c.Status(http.StatusNoContent)
@@ -78,6 +106,18 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func isCORSOriginAllowed(origin, configuredOrigins, fallbackOrigin string) bool {
+	if configuredOrigins == "" {
+		configuredOrigins = fallbackOrigin
+	}
+	for _, candidate := range strings.Split(configuredOrigins, ",") {
+		if candidate = strings.TrimSpace(candidate); candidate != "" && origin == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // # Refresh Token 쿠키 설정 기능
@@ -119,22 +159,7 @@ func requestIP(c *gin.Context) string {
 
 // # API 오류 상태 코드 결정 기능
 func statusFor(err error) int {
-	switch {
-	case errors.Is(err, model.ErrInvalid), errors.Is(err, model.ErrCode):
-		return http.StatusBadRequest
-	case errors.Is(err, model.ErrConflict):
-		return http.StatusConflict
-	case errors.Is(err, model.ErrTerms):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, model.ErrState):
-		return http.StatusGone
-	case errors.Is(err, model.ErrRateLimit):
-		return http.StatusTooManyRequests
-	case errors.Is(err, model.ErrUnauthorized):
-		return http.StatusUnauthorized
-	default:
-		return http.StatusInternalServerError
-	}
+	return response.StatusFor(err)
 }
 
 // # API 오류 응답 작성 기능

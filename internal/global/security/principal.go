@@ -10,6 +10,8 @@ type Principal struct {
 	Email           string    `json:"email"`
 	Username        string    `json:"username"`
 	Nickname        string    `json:"nickname"`
+	AvatarURL       string    `json:"avatarUrl,omitempty"`
+	DisplayTheme    string    `json:"displayTheme"`
 	Role            string    `json:"role"`
 	Status          string    `json:"status"`
 	EmailVerified   bool      `json:"emailVerified"`

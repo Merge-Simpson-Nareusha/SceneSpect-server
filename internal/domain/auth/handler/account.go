@@ -39,6 +39,62 @@ func (h *AuthHandler) NicknameUpdate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": updated})
 }
 
+// # 프로필과 화면 설정 수정 요청 처리 기능
+func (h *AuthHandler) ProfileUpdate(c *gin.Context) {
+	var request profileRequest
+	if !response.BindJSON(c, &request) {
+		return
+	}
+	current, ok := authmiddleware.CurrentUser(c)
+	if !ok {
+		response.Unauthorized(c)
+		return
+	}
+	updated, err := h.service.UpdateProfile(c.Request.Context(), current.ID, request.Nickname, request.AvatarURL)
+	if err != nil {
+		respondError(c, statusFor(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": updated})
+}
+
+// # 화면 테마 수정 요청 처리 기능
+func (h *AuthHandler) DisplayThemeUpdate(c *gin.Context) {
+	var request displayThemeRequest
+	if !response.BindJSON(c, &request) {
+		return
+	}
+	current, ok := authmiddleware.CurrentUser(c)
+	if !ok {
+		response.Unauthorized(c)
+		return
+	}
+	updated, err := h.service.UpdateDisplayTheme(c.Request.Context(), current.ID, request.DisplayTheme)
+	if err != nil {
+		respondError(c, statusFor(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": updated})
+}
+
+// # 로그인된 사용자의 비밀번호 변경 요청 처리 기능
+func (h *AuthHandler) PasswordChange(c *gin.Context) {
+	var request changePasswordRequest
+	if !response.BindJSON(c, &request) {
+		return
+	}
+	current, ok := authmiddleware.CurrentUser(c)
+	if !ok {
+		response.Unauthorized(c)
+		return
+	}
+	if err := h.service.ChangePassword(c.Request.Context(), current.ID, request.CurrentPassword, request.Password, request.PasswordConfirmation); err != nil {
+		respondError(c, statusFor(err), err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // # 비밀번호 찾기 요청 처리 기능
 func (h *AuthHandler) PasswordForgot(c *gin.Context) {
 	var request emailRequest

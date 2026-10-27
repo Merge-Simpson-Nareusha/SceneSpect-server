@@ -1,94 +1,98 @@
-# SceneSpect 인증 서버
+# SceneSpect API 서버
 
-Go/Gin 기반 인증·인가 API입니다. 완료되지 않은 회원가입은 Redis TTL 상태로 관리하고, 회원·약관 동의·Refresh Token 해시는 PostgreSQL에 저장합니다.
+Go와 Gin 기반의 SceneSpect API 서버입니다. 계정·세션, OAuth 로그인, 팀과 프로젝트 관리, 프로필 및 화면 설정, 이미지 업로드 API를 제공합니다. PostgreSQL은 영속 데이터, Redis는 가입·인증·OAuth 임시 상태에 사용합니다.
 
 ## 로컬 실행
 
 ```sh
 cp .env.example .env
-# .env의 JWT_SECRET, CODE_SECRET를 각각 openssl rand -base64 32 값으로 교체
+# .env의 JWT_SECRET, CODE_SECRET를 서로 다른 `openssl rand -base64 32` 값으로 교체
 docker compose up --build
 ```
 
-`app`, `postgres`, `redis`가 모두 healthy 상태가 되면 `http://localhost:8080/healthz`에서 상태를 확인할 수 있습니다. 개발 모드의 이메일 인증 코드와 비밀번호 재설정 토큰은 app 로그에 출력됩니다. 운영에서는 SMTP와 `COOKIE_SECURE=true`, HTTPS Origin을 사용해야 합니다.
+서비스가 준비되면 다음 주소를 사용할 수 있습니다.
 
-## 패키지 구조
+- 상태 확인: `http://localhost:8080/healthz`
+- Swagger UI: `http://localhost:8080/swagger`
+- OpenAPI 문서: `http://localhost:8080/openapi.yaml`
 
-책임별 `cmd` + `internal` 경계를 사용합니다. `cmd/server`는 의존성 조립과 서버 생명주기만 담당하고, 인증과 인가 정책은 `internal/domain` 아래에서 관리합니다.
-
-```text
-cmd/
-├── server/
-│   ├── main.go                 # 의존성 조립과 종료
-│   ├── router.go               # 인증·관리자 경로와 middleware 순서
-│   └── server.go               # HTTP 실행 시간 제한
-└── migrate/main.go             # Goose migration 실행
-internal/
-├── domain/
-│   ├── auth/
-│   │   ├── handler/            # 인증 HTTP 요청·응답·쿠키
-│   │   ├── service/            # 가입·로그인·세션·계정 복구 흐름
-│   │   ├── repository/         # 회원·약관·토큰 PostgreSQL 쿼리
-│   │   └── model/              # 계정·약관·토큰 데이터와 도메인 오류
-│   └── authorization/
-│       ├── middleware/         # 역할 기반 접근 허용·거절
-│       ├── service/            # 인증 주체 역할 판단
-│       └── model/              # USER·ADMIN 역할
-└── global/
-    ├── config/                 # 환경변수 검증
-    ├── database/
-    │   ├── postgres/           # PostgreSQL 연결 풀
-    │   └── redis/              # 가입·인증코드·요청 제한·재설정 상태
-    ├── mailer/                 # 발송 계약·SMTP·개발용 콘솔
-    ├── middleware/             # Access Token 인증
-    ├── response/               # 공통 오류와 JSON 응답
-    └── security/               # JWT, bcrypt, 난수, 입력 검증·Principal
-```
-
-가입 중간 상태는 영속 회원이 아니므로 Redis에 TTL로 저장합니다. 이렇게 하면 미완료 가입을 PostgreSQL에서 별도 정리할 배치 없이 자동 만료시킬 수 있고, 인증코드·rate limit·비밀번호 재설정 토큰과 동일한 만료 정책으로 관리할 수 있습니다. 최종 회원·약관 동의·Refresh Token hash는 PostgreSQL에 저장합니다.
+Swagger UI는 `/swagger-ui/index.html`에서 제공하며 기존 `/swagger` 주소도 사용할 수 있습니다. Springdoc 호환 OpenAPI JSON은 `/v3/api-docs`, YAML은 `/openapi.yaml`에서 제공됩니다. UI 정적 리소스는 CDN에서 가져오므로 브라우저가 인터넷에 연결되어 있어야 합니다. 개발 모드에서 이메일 인증 코드와 비밀번호 재설정 토큰은 앱 로그에 출력됩니다. `WEB_ORIGIN`은 OAuth 이동에 사용할 기본 origin이고, `CORS_ORIGINS`는 쉼표로 구분한 정확한 허용 origin 목록입니다. 운영에서는 SMTP, `COOKIE_SECURE=true`, HTTPS `WEB_ORIGIN`, `CORS_ORIGINS`, `API_BASE_URL`을 사용해야 합니다.
 
 ## 주요 API
 
-| 단계 | 메서드 | 경로 |
+인증이 필요한 요청은 `Authorization: Bearer <accessToken>` 헤더를 사용합니다. Refresh Token은 `HttpOnly` 쿠키로만 전달됩니다.
+
+| 기능 | 메서드 | 경로 |
 | --- | --- | --- |
-| 약관 조회 | GET | `/api/v1/auth/signup/terms` |
-| 가입 이메일 시작 | POST | `/api/v1/auth/signup/start` |
-| 비밀번호 설정 | POST | `/api/v1/auth/signup/password` |
-| 인증코드 발송/확인 | POST | `/api/v1/auth/signup/email/send`, `/api/v1/auth/signup/email/verify` |
-| 약관 동의 및 가입 완료 | POST | `/api/v1/auth/signup/terms` |
-| 로그인/토큰 재발급/로그아웃 | POST | `/api/v1/auth/login`, `/api/v1/auth/token/refresh`, `/api/v1/auth/logout` |
-| 내 정보 조회 | GET | `/api/v1/auth/me` |
-| 닉네임 수정 | PATCH | `/api/v1/auth/me/nickname` |
-| 비밀번호 찾기/재설정 | POST | `/api/v1/auth/password/forgot`, `/api/v1/auth/password/reset` |
-| 계정 찾기 | POST | `/api/v1/auth/account/find` |
+| 회원가입 약관 조회 및 완료 | GET, POST | `/api/v1/auth/signup/terms` |
+| 이메일 가입·인증 | POST | `/api/v1/auth/signup/start`, `/password`, `/email/send`, `/email/verify` |
+| 로그인·토큰 갱신·로그아웃 | POST | `/api/v1/auth/login`, `/token/refresh`, `/logout` |
+| 비밀번호 재설정·계정 찾기 | POST | `/api/v1/auth/password/forgot`, `/password/reset`, `/account/find` |
+| 내 계정·프로필 조회 | GET | `/api/v1/auth/me` |
+| 닉네임·프로필·화면 테마·비밀번호 변경 | PATCH, POST | `/api/v1/auth/me/nickname`, `/me/profile`, `/me/display-theme`, `/me/password` |
+| OAuth 로그인·계정 연결 | GET, POST | `/api/v1/auth/oauth/{provider}/start`, `/callback`, `/link/start` |
+| OAuth 이메일 확인·가입 완료 | POST | `/api/v1/auth/oauth/complete/email/send`, `/email/verify`, `/complete` |
+| 팀 목록·생성·정렬 | GET, POST, PUT | `/api/v1/teams`, `/api/v1/teams/order` |
+| 팀 설정·삭제·멤버 관리 | GET, PATCH, DELETE | `/api/v1/teams/{teamId}` 및 하위 `/members` 경로 |
+| 팀 가입 요청·검토 | POST, GET, PATCH | `/api/v1/teams/join-requests`, `/api/v1/teams/{teamId}/join-requests` |
+| 팀 프로젝트 목록·생성 | GET, POST | `/api/v1/teams/{teamId}/projects` |
+| 프로젝트 조회·수정·삭제 | GET, PATCH, DELETE | `/api/v1/projects/{projectId}` |
+| 프로젝트 권한·접근 요청 | GET, PUT, DELETE, POST | `/api/v1/projects/{projectId}/members`, `/permissions/{userId}`, `/access-requests` |
+| 프로젝트 삭제 요청·검토 | POST, GET, PATCH | `/api/v1/projects/{projectId}/delete-requests`, `/api/v1/teams/{teamId}/project-delete-requests` |
+| 이미지 업로드·조회 | POST, GET | `/api/v1/media/images`, `/media/{filename}` |
 
-Access Token은 `Authorization: Bearer ...`로 전달하고, Refresh Token은 `HttpOnly; Secure; SameSite=Lax` 쿠키로만 전달합니다. Refresh Token 원문은 저장하지 않고 SHA-256 해시만 저장하며, 재발급 때마다 회전합니다. 폐기된 토큰이 다시 사용되면 같은 family 전체를 폐기합니다.
+세부 요청·응답 형식과 상태 코드는 Swagger UI에서 확인할 수 있습니다.
 
-## 가입 요청 예시
+프로젝트 공개 범위는 `TEAM`(팀원 전체 읽기) 또는 `SELECTED`(선택된 팀원만 접근)로 설정합니다. 프로젝트 작성자와 팀장·부팀장은 프로젝트 관리 권한을 가집니다. `TEAM` 프로젝트에서 편집 권한이 필요한 팀원은 `EDITOR` 접근 신청을 제출할 수 있습니다.
 
-```json
-{
-  "signupSessionId": "...",
-  "consents": [
-    {"termId":"00000000-0000-0000-0000-000000000001", "accepted":true},
-    {"termId":"00000000-0000-0000-0000-000000000002", "accepted":true},
-    {"termId":"00000000-0000-0000-0000-000000000003", "accepted":false}
-  ]
-}
+## 계정 및 OAuth 설정
+
+Google, Kakao, X, Apple OAuth는 선택적으로 사용할 수 있습니다. 사용할 공급자의 개발자 콘솔에 다음 콜백 주소를 등록하고 `.env`의 해당 값을 설정합니다.
+
+| 공급자 | 콜백 주소 |
+| --- | --- |
+| Google | `{API_BASE_URL}/api/v1/auth/oauth/google/callback` |
+| Kakao | `{API_BASE_URL}/api/v1/auth/oauth/kakao/callback` |
+| X | `{API_BASE_URL}/api/v1/auth/oauth/x/callback` |
+| Apple | `{API_BASE_URL}/api/v1/auth/oauth/apple/callback` (form_post) |
+
+X 계정에서 이메일 주소를 제공하지 않으면 가입 과정에서 이메일 인증을 완료해야 합니다. OAuth 공급자 비밀 값은 저장소에 넣지 말고 환경변수로만 전달합니다. Apple은 `.p8` 개인 키를 Base64로 인코딩해 `OAUTH_APPLE_PRIVATE_KEY_B64`에 설정합니다.
+
+Access Token은 짧은 만료 시간을 가지며, Refresh Token 원문 대신 해시를 저장하고 갱신마다 회전합니다. 재사용된 폐기 토큰이 감지되면 해당 토큰 계열을 폐기합니다.
+
+## 이미지 저장
+
+프로필·팀·프로젝트 이미지 업로드는 인증된 사용자가 `multipart/form-data`의 `file` 필드로 요청합니다. JPEG와 PNG 파일을 검증하고 메타데이터를 제거해 저장합니다. 업로드 응답의 `url`을 프로필 또는 팀·프로젝트 정보에 전달해 연결할 수 있습니다.
+
+Docker Compose에서는 파일을 `/app/uploads`에 저장하고 `uploads` named volume에 보존합니다. 기본 업로드 크기 제한은 5 MiB이며 `MEDIA_MAX_IMAGE_BYTES`로 조정할 수 있습니다. 로컬 실행 환경에서는 `MEDIA_STORAGE_DIR` 경로를 사용합니다.
+
+## 패키지 구조
+
+```text
+cmd/server/                    의존성 조립, 라우터, 서버 생명주기
+cmd/migrate/                   Goose migration 실행
+internal/domain/auth/          이메일 인증, OAuth, 계정·세션 처리
+internal/domain/authorization/ 역할 기반 인가
+internal/domain/media/         이미지 업로드·조회 HTTP 핸들러
+internal/domain/project/       프로젝트·접근 권한·요청 흐름
+internal/domain/team/          팀·멤버·가입 요청 흐름
+internal/docs/                 내장 OpenAPI YAML과 Swagger UI
+internal/global/config/        환경 변수 로드와 검증
+internal/global/database/      PostgreSQL 및 Redis 연결·저장
+internal/global/media/         로컬 이미지 파일 저장
+internal/global/mailer/        SMTP 및 개발 콘솔 메일 발송
+internal/global/security/      JWT, 비밀번호, 입력 검증
+migrations/                    PostgreSQL 스키마 migration
 ```
-
-## 설계 메모
-
-- 기본 `username`과 `nickname`은 이메일의 `@` 앞부분에서 시작하고, 충돌 시 `-2`, `-3` suffix를 붙입니다. 사용자는 인증된 `/me/nickname` API로 닉네임을 변경할 수 있으며, 로그인용 `username`은 유지됩니다.
-- 인증코드는 6자리·5분 TTL이며 HMAC으로 Redis에 저장합니다. 발송 쿨다운, 시간당 발송 제한, 5회 실패 제한을 Redis Lua 스크립트로 원자 처리합니다.
 
 ## 검증
 
 ```sh
-gofmt -w cmd internal migrations
-go test ./...
+gofmt -w cmd internal
+go build ./...
 go vet ./...
+go test ./...
 docker compose config
 ```
 
-Docker 데몬이 실행 중이면 `docker compose up --build`로 실제 PostgreSQL, Redis, migration, healthcheck까지 확인할 수 있습니다.
+Docker 데몬이 실행 중이면 `docker compose up --build`로 PostgreSQL, Redis, migration과 healthcheck까지 확인할 수 있습니다.
