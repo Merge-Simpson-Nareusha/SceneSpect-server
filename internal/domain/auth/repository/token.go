@@ -84,7 +84,7 @@ func (r *PostgresAuthRepository) RotateRefresh(ctx context.Context, raw string, 
 }
 
 // # 저장된 비밀번호 변경 기능
-func (r *PostgresAuthRepository) ResetPassword(ctx context.Context, userID, passwordHash string) error {
+func (r *PostgresAuthRepository) ResetPassword(ctx context.Context, userID, passwordHash string, expectedVersion int64) error {
 	// 비밀번호 변경과 기존 refresh token 폐기를 같은 트랜잭션으로 묶어,
 	// 변경은 되었지만 이전 세션이 살아남는 중간 상태를 방지합니다.
 	tx, err := r.Pool.Begin(ctx)
@@ -92,8 +92,32 @@ func (r *PostgresAuthRepository) ResetPassword(ctx context.Context, userID, pass
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, `UPDATE users SET password_hash=$1,password_version=password_version+1,updated_at=now() WHERE id=$2`, passwordHash, userID); err != nil {
+	tag, err := tx.Exec(ctx, `UPDATE users SET password_hash=$1,password_version=password_version+1,updated_at=now() WHERE id=$2 AND password_version=$3`, passwordHash, userID, expectedVersion)
+	if err != nil {
 		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return model.ErrUnauthorized
+	}
+	if _, err = tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE user_id=$1 AND revoked_at IS NULL`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *PostgresAuthRepository) ChangePassword(ctx context.Context, userID, expectedHash string, expectedVersion int64, passwordHash string) error {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	tag, err := tx.Exec(ctx, `UPDATE users SET password_hash=$1,password_version=password_version+1,updated_at=now()
+		WHERE id=$2 AND password_hash=$3 AND password_version=$4`, passwordHash, userID, expectedHash, expectedVersion)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return model.ErrUnauthorized
 	}
 	if _, err = tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=COALESCE(revoked_at,now()) WHERE user_id=$1 AND revoked_at IS NULL`, userID); err != nil {
 		return err
