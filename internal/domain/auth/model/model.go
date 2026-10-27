@@ -17,6 +17,7 @@ import (
 var (
 	ErrInvalid      = response.ErrInvalid
 	ErrUnauthorized = response.ErrUnauthorized
+	ErrNotFound     = response.ErrNotFound
 	ErrConflict     = response.ErrConflict
 	ErrTerms        = response.ErrTerms
 	ErrState        = response.ErrState
@@ -85,4 +86,10 @@ type Tokens struct {
 	User             User      `json:"user"`
 	RefreshToken     string    `json:"-"`
 	RefreshExpiresAt time.Time `json:"-"`
+}
+
+type OAuthCallbackResult struct {
+	Tokens          *Tokens `json:"-"`
+	SignupSessionID string  `json:"signupSessionId,omitempty"`
+	EmailRequired   bool    `json:"emailRequired"`
 }

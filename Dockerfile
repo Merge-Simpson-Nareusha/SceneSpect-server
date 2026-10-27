@@ -12,6 +12,7 @@ WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/migrate /app/migrate
 COPY migrations /app/migrations
+RUN mkdir -p /app/uploads && chown app:app /app/uploads
 USER app
 EXPOSE 8080
 CMD ["/app/server"]

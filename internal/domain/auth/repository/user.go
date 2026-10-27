@@ -14,8 +14,8 @@ import (
 // # 로그인 정보로 사용자 조회 기능
 func (r *PostgresAuthRepository) UserByLogin(ctx context.Context, login string) (model.User, error) {
 	var current model.User
-	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1 OR username=$1`, login).
-		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1 OR username=$1`, login).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return current, model.ErrUnauthorized
 	}
@@ -25,8 +25,8 @@ func (r *PostgresAuthRepository) UserByLogin(ctx context.Context, login string) 
 // # 이메일로 사용자 조회 기능
 func (r *PostgresAuthRepository) UserByEmail(ctx context.Context, email string) (model.User, error) {
 	var current model.User
-	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1`, email).
-		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE email=$1`, email).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return current, model.ErrUnauthorized
 	}
@@ -36,8 +36,8 @@ func (r *PostgresAuthRepository) UserByEmail(ctx context.Context, email string) 
 // # ID로 사용자 조회 기능
 func (r *PostgresAuthRepository) UserByID(ctx context.Context, id string) (model.User, error) {
 	var current model.User
-	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE id=$1`, id).
-		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	err := r.Pool.QueryRow(ctx, `SELECT id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at FROM users WHERE id=$1`, id).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return current, model.ErrUnauthorized
 	}
@@ -47,13 +47,40 @@ func (r *PostgresAuthRepository) UserByID(ctx context.Context, id string) (model
 // # 사용자 닉네임 저장 기능
 func (r *PostgresAuthRepository) UpdateNickname(ctx context.Context, userID, nickname string) (model.User, error) {
 	var current model.User
-	err := r.Pool.QueryRow(ctx, `UPDATE users SET nickname=$1,updated_at=now() WHERE id=$2 RETURNING id,email,username,nickname,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at`, nickname, userID).
-		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	err := r.Pool.QueryRow(ctx, `UPDATE users SET nickname=$1,updated_at=now() WHERE id=$2 RETURNING id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at`, nickname, userID).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.User{}, model.ErrUnauthorized
 	}
 	if isUniqueViolation(err) {
 		return model.User{}, model.ErrConflict
+	}
+	return current, err
+}
+
+// # 프로필과 화면 설정 저장 기능
+func (r *PostgresAuthRepository) UpdateProfile(ctx context.Context, userID, nickname, avatarURL string) (model.User, error) {
+	var current model.User
+	err := r.Pool.QueryRow(ctx, `UPDATE users SET nickname=$1,avatar_url=NULLIF($2,''),updated_at=now() WHERE id=$3
+		RETURNING id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at`, nickname, avatarURL, userID).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.User{}, model.ErrUnauthorized
+	}
+	if isUniqueViolation(err) {
+		return model.User{}, model.ErrConflict
+	}
+	return current, err
+}
+
+// # 화면 테마 저장 기능
+func (r *PostgresAuthRepository) UpdateDisplayTheme(ctx context.Context, userID, displayTheme string) (model.User, error) {
+	var current model.User
+	err := r.Pool.QueryRow(ctx, `UPDATE users SET display_theme=$1,updated_at=now() WHERE id=$2
+		RETURNING id,email,username,nickname,COALESCE(avatar_url,''),display_theme,COALESCE(password_hash,''),password_version,email_verified,role,status,created_at`, displayTheme, userID).
+		Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.User{}, model.ErrUnauthorized
 	}
 	return current, err
 }
@@ -67,37 +94,9 @@ func (r *PostgresAuthRepository) EmailExists(ctx context.Context, email string) 
 
 // # 약관 동의와 함께 사용자 생성 기능
 func (r *PostgresAuthRepository) CreateUserWithTerms(ctx context.Context, signup model.Signup, consents []model.Consent) (model.User, error) {
-	// 가입 화면에서 전달한 ID 목록을 신뢰하지 않고 현재 active 약관을 기준으로 검증합니다.
-	terms, err := r.Terms(ctx)
+	terms, accepted, err := r.validateConsents(ctx, consents)
 	if err != nil {
 		return model.User{}, err
-	}
-
-	accepted := make(map[string]bool, len(consents))
-	for _, consent := range consents {
-		if _, exists := accepted[consent.TermID]; exists {
-			return model.User{}, model.ErrInvalid
-		}
-		accepted[consent.TermID] = consent.Accepted
-	}
-	for _, term := range terms {
-		if term.Required && !accepted[term.ID] {
-			return model.User{}, model.ErrTerms
-		}
-	}
-	// 생략된 선택 약관은 accepted map에 없으므로 동의하지 않은 것으로 저장됩니다.
-	// 오래된 약관 ID나 중복 ID를 받아 적법하지 않은 동의 이력이 쌓이는 것도 거부합니다.
-	for _, consent := range consents {
-		found := false
-		for _, term := range terms {
-			if term.ID == consent.TermID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return model.User{}, model.ErrInvalid
-		}
 	}
 
 	// 닉네임과 로그인 아이디를 원자적으로 삽입해 동시 가입에서도 suffix 충돌을 방지합니다.
@@ -127,8 +126,8 @@ func (r *PostgresAuthRepository) CreateUserWithTerms(ctx context.Context, signup
 		var current model.User
 		// 고정 아이디와 닉네임은 동일한 candidate로 시작합니다. 어느 쪽이 이미 쓰였다면
 		// INSERT가 행을 만들지 않으므로 다음 suffix를 시도합니다.
-		err = tx.QueryRow(ctx, `INSERT INTO users(id,email,username,nickname,password_hash,email_verified,role,status) VALUES($1,$2,$3,$4,$5,true,'USER','ACTIVE') ON CONFLICT DO NOTHING RETURNING id,email,username,nickname,password_hash,password_version,email_verified,role,status,created_at`, id, signup.Email, candidate, candidate, signup.PasswordHash).
-			Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
+		err = tx.QueryRow(ctx, `INSERT INTO users(id,email,username,nickname,password_hash,email_verified,role,status) VALUES($1,$2,$3,$4,$5,true,'USER','ACTIVE') ON CONFLICT DO NOTHING RETURNING id,email,username,nickname,COALESCE(avatar_url,''),display_theme,password_hash,password_version,email_verified,role,status,created_at`, id, signup.Email, candidate, candidate, signup.PasswordHash).
+			Scan(&current.ID, &current.Email, &current.Username, &current.Nickname, &current.AvatarURL, &current.DisplayTheme, &current.PasswordHash, &current.PasswordVersion, &current.EmailVerified, &current.Role, &current.Status, &current.CreatedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			_ = tx.Rollback(ctx)
 			continue

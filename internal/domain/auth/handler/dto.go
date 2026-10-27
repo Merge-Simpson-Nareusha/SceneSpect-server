@@ -70,3 +70,18 @@ type findRequest struct {
 type nicknameRequest struct {
 	Nickname string `json:"nickname" binding:"required"`
 }
+
+type profileRequest struct {
+	Nickname  string `json:"nickname" binding:"required"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+type displayThemeRequest struct {
+	DisplayTheme string `json:"displayTheme" binding:"required"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword      string `json:"currentPassword" binding:"required"`
+	Password             string `json:"password" binding:"required"`
+	PasswordConfirmation string `json:"passwordConfirmation" binding:"required"`
+}
