@@ -52,6 +52,7 @@ type AuthHandler struct {
 	oauth        OAuthUseCase
 	cookieSecure bool
 	webOrigin    string
+	apiBaseURL   string
 }
 
 // # 인증 핸들러 생성 기능
@@ -60,7 +61,13 @@ func NewHandler(authService UseCase, cfg config.Config) *AuthHandler {
 }
 
 func NewHandlerWithOAuth(authService UseCase, oauthService OAuthUseCase, cfg config.Config) *AuthHandler {
-	return &AuthHandler{service: authService, oauth: oauthService, cookieSecure: cfg.CookieSecure, webOrigin: cfg.WebOrigin}
+	return &AuthHandler{
+		service:      authService,
+		oauth:        oauthService,
+		cookieSecure: cfg.CookieSecure,
+		webOrigin:    cfg.WebOrigin,
+		apiBaseURL:   cfg.APIBaseURL,
+	}
 }
 
 // # 인증 서비스 조회 기능
@@ -78,11 +85,13 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		oauthCallback := strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/oauth/") && strings.HasSuffix(c.Request.URL.Path, "/callback")
-		if origin != "" && origin != h.webOrigin && !oauthCallback {
+		apiOrigin := origin != "" && origin == h.apiBaseURL
+		webOrigin := origin != "" && origin == h.webOrigin
+		if origin != "" && !webOrigin && !apiOrigin && !oauthCallback {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin is not allowed"})
 			return
 		}
-		if origin == h.webOrigin {
+		if webOrigin || apiOrigin {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Credentials", "true")

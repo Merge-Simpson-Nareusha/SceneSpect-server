@@ -52,7 +52,7 @@ func Load() (Config, error) {
 	c := Config{
 		Environment: env("APP_ENV", "development"), Address: env("HTTP_ADDR", ":8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"), RedisURL: os.Getenv("REDIS_URL"),
-		Issuer: "scenespect-api", Audience: "scenespect-web", WebOrigin: env("WEB_ORIGIN", "http://localhost:3000"),
+		Issuer: "scenespect-api", Audience: "scenespect-web", WebOrigin: env("WEB_ORIGIN", "https://localhost:5173"),
 		APIBaseURL: env("API_BASE_URL", "http://localhost:8080"), MediaStorageDir: env("MEDIA_STORAGE_DIR", "./uploads"),
 		SMTPHost: os.Getenv("SMTP_HOST"), SMTPPort: env("SMTP_PORT", "587"),
 		SMTPUser: os.Getenv("SMTP_USER"), SMTPPassword: os.Getenv("SMTP_PASSWORD"), MailFrom: os.Getenv("MAIL_FROM"),
