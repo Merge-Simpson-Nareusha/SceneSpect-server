@@ -16,7 +16,7 @@ docker compose up --build
 - Swagger UI: `http://localhost:8080/swagger`
 - OpenAPI 문서: `http://localhost:8080/openapi.yaml`
 
-Swagger UI는 `/swagger-ui/index.html`에서 제공하며 기존 `/swagger` 주소도 사용할 수 있습니다. Springdoc 호환 OpenAPI JSON은 `/v3/api-docs`, YAML은 `/openapi.yaml`에서 제공됩니다. UI 정적 리소스는 CDN에서 가져오므로 브라우저가 인터넷에 연결되어 있어야 합니다. 개발 모드에서 이메일 인증 코드와 비밀번호 재설정 토큰은 앱 로그에 출력됩니다. 운영에서는 SMTP, `COOKIE_SECURE=true`, HTTPS `WEB_ORIGIN`과 `API_BASE_URL`을 사용해야 합니다.
+Swagger UI는 `/swagger-ui/index.html`에서 제공하며 기존 `/swagger` 주소도 사용할 수 있습니다. Springdoc 호환 OpenAPI JSON은 `/v3/api-docs`, YAML은 `/openapi.yaml`에서 제공됩니다. UI 정적 리소스는 CDN에서 가져오므로 브라우저가 인터넷에 연결되어 있어야 합니다. 개발 모드에서 이메일 인증 코드와 비밀번호 재설정 토큰은 앱 로그에 출력됩니다. `WEB_ORIGIN`은 OAuth 이동에 사용할 기본 origin이고, `CORS_ORIGINS`는 쉼표로 구분한 정확한 허용 origin 목록입니다. 운영에서는 SMTP, `COOKIE_SECURE=true`, HTTPS `WEB_ORIGIN`, `CORS_ORIGINS`, `API_BASE_URL`을 사용해야 합니다.
 
 ## 주요 API
 

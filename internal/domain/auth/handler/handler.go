@@ -52,6 +52,7 @@ type AuthHandler struct {
 	oauth        OAuthUseCase
 	cookieSecure bool
 	webOrigin    string
+	corsOrigins  string
 	apiBaseURL   string
 }
 
@@ -66,6 +67,7 @@ func NewHandlerWithOAuth(authService UseCase, oauthService OAuthUseCase, cfg con
 		oauth:        oauthService,
 		cookieSecure: cfg.CookieSecure,
 		webOrigin:    cfg.WebOrigin,
+		corsOrigins:  cfg.CORSOrigins,
 		apiBaseURL:   cfg.APIBaseURL,
 	}
 }
@@ -86,7 +88,7 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 		origin := c.GetHeader("Origin")
 		oauthCallback := strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth/oauth/") && strings.HasSuffix(c.Request.URL.Path, "/callback")
 		apiOrigin := origin != "" && origin == h.apiBaseURL
-		webOrigin := origin != "" && origin == h.webOrigin
+		webOrigin := origin != "" && isCORSOriginAllowed(origin, h.corsOrigins, h.webOrigin)
 		if origin != "" && !webOrigin && !apiOrigin && !oauthCallback {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "origin is not allowed"})
 			return
@@ -104,6 +106,18 @@ func (h *AuthHandler) CORS() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func isCORSOriginAllowed(origin, configuredOrigins, fallbackOrigin string) bool {
+	if configuredOrigins == "" {
+		configuredOrigins = fallbackOrigin
+	}
+	for _, candidate := range strings.Split(configuredOrigins, ",") {
+		if candidate = strings.TrimSpace(candidate); candidate != "" && origin == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // # Refresh Token 쿠키 설정 기능

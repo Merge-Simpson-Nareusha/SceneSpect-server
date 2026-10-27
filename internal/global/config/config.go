@@ -17,7 +17,7 @@ import (
 type Config struct {
 	Environment, Address, DatabaseURL, RedisURL          string
 	JWTKey, CodeKey                                      []byte
-	Issuer, Audience, WebOrigin, APIBaseURL              string
+	Issuer, Audience, WebOrigin, CORSOrigins, APIBaseURL string
 	AccessTTL, RefreshTTL                                time.Duration
 	CookieSecure                                         bool
 	BcryptCost                                           int
@@ -49,11 +49,13 @@ type OAuthConfig struct {
 
 // # 환경 설정 로드 기능
 func Load() (Config, error) {
+	webOrigin := env("WEB_ORIGIN", "https://localhost:5173")
 	c := Config{
 		Environment: env("APP_ENV", "development"), Address: env("HTTP_ADDR", ":8080"),
 		DatabaseURL: os.Getenv("DATABASE_URL"), RedisURL: os.Getenv("REDIS_URL"),
-		Issuer: "scenespect-api", Audience: "scenespect-web", WebOrigin: env("WEB_ORIGIN", "https://localhost:5173"),
-		APIBaseURL: env("API_BASE_URL", "http://localhost:8080"), MediaStorageDir: env("MEDIA_STORAGE_DIR", "./uploads"),
+		Issuer: "scenespect-api", Audience: "scenespect-web", WebOrigin: webOrigin,
+		CORSOrigins: env("CORS_ORIGINS", webOrigin),
+		APIBaseURL:  env("API_BASE_URL", "http://localhost:8080"), MediaStorageDir: env("MEDIA_STORAGE_DIR", "./uploads"),
 		SMTPHost: os.Getenv("SMTP_HOST"), SMTPPort: env("SMTP_PORT", "587"),
 		SMTPUser: os.Getenv("SMTP_USER"), SMTPPassword: os.Getenv("SMTP_PASSWORD"), MailFrom: os.Getenv("MAIL_FROM"),
 		OAuth: OAuthConfig{
@@ -94,6 +96,9 @@ func Load() (Config, error) {
 	if c.DatabaseURL == "" || c.RedisURL == "" || c.SMTPHost == "" || c.MailFrom == "" {
 		return c, errors.New("DATABASE_URL, REDIS_URL, SMTP_HOST and MAIL_FROM are required")
 	}
+	if err = validateCORSOrigins(c.CORSOrigins); err != nil {
+		return c, err
+	}
 	u, err := url.Parse(c.WebOrigin)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return c, errors.New("WEB_ORIGIN must be an exact http(s) origin without a trailing slash")
@@ -108,10 +113,34 @@ func Load() (Config, error) {
 	if err = validateOAuthConfig(&c.OAuth); err != nil {
 		return c, err
 	}
-	if c.Environment == "production" && (!c.CookieSecure || c.SMTPInsecure || u.Scheme != "https" || apiURL.Scheme != "https") {
-		return c, errors.New("production requires secure cookies, HTTPS WEB_ORIGIN and API_BASE_URL, and SMTP STARTTLS")
+	if c.Environment == "production" && (!c.CookieSecure || c.SMTPInsecure || u.Scheme != "https" || apiURL.Scheme != "https" || !corsOriginsAreHTTPS(c.CORSOrigins)) {
+		return c, errors.New("production requires secure cookies, HTTPS WEB_ORIGIN, CORS_ORIGINS and API_BASE_URL, and SMTP STARTTLS")
 	}
 	return c, nil
+}
+
+func validateCORSOrigins(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return errors.New("CORS_ORIGINS must contain at least one exact http(s) origin")
+	}
+	for _, candidate := range strings.Split(raw, ",") {
+		candidate = strings.TrimSpace(candidate)
+		u, err := url.Parse(candidate)
+		if candidate == "" || err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return errors.New("CORS_ORIGINS must be a comma-separated list of exact http(s) origins without trailing slashes")
+		}
+	}
+	return nil
+}
+
+func corsOriginsAreHTTPS(raw string) bool {
+	for _, candidate := range strings.Split(raw, ",") {
+		u, err := url.Parse(strings.TrimSpace(candidate))
+		if err != nil || u.Scheme != "https" {
+			return false
+		}
+	}
+	return true
 }
 
 func validateOAuthConfig(config *OAuthConfig) error {
